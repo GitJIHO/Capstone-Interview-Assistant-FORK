@@ -35,11 +35,12 @@ jobs:
         
     - name: 🧪 Run All Tests
       run: |
-        for proj in $(find test -name "*.csproj"); do
-          proj_name=$(basename $proj .csproj)
-          dotnet test "$proj" --configuration Release --logger "trx;LogFileName=${proj_name}.trx" --results-directory ./test-results || true
-        done
-      shell: bash
+        timestamp=$(date +%Y%m%d%H%M%S)
+        dotnet test test/*/InterviewAssistant.*.csproj \
+          --configuration Release \
+          --logger "trx;LogFileName=all_tests_$timestamp.trx" \
+          --results-directory ./test-results
+      continue-on-error: true
 
     - name: 🔄 Convert Test Results to JUnit Format
       if: github.event_name == 'pull_request'
