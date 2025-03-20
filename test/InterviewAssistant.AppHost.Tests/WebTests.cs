@@ -32,6 +32,6 @@ public class WebTests
         var response = await httpClient.GetAsync("/");
 
         // Assert
-        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        Assert.Fail("This test is intentionally set to fail.");
     }
 }
