@@ -34,10 +34,14 @@ jobs:
         
     - name: 🧪 Run All Tests
       run: |
+        TEST_FAILED=0
         for proj in $(find test -name "*.csproj"); do
           proj_name=$(basename $proj .csproj)
-          dotnet test "$proj" --configuration Release --logger "trx;LogFileName=${proj_name}.trx" --results-directory ./test-results || true
+          if ! dotnet test "$proj" --configuration Release --logger "trx;LogFileName=${proj_name}.trx" --results-directory ./test-results; then
+            TEST_FAILED=1
+          fi
         done
+        echo "TEST_FAILED=$TEST_FAILED" >> $GITHUB_ENV
       shell: bash
 
     - name: 🔄 Convert Test Results to JUnit Format
@@ -61,11 +65,11 @@ jobs:
         github_token: ${{ secrets.GITHUB_TOKEN }}
 
     - name: 📦 Publish Project
-      if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+      if: env.TEST_FAILED == '0' && github.event_name == 'push' && github.ref == 'refs/heads/develop'
       run: dotnet publish --configuration Release --output ./publish
 
     - name: 📤 Upload Published Artifact
-      if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+      if: env.TEST_FAILED == '0' && github.event_name == 'push' && github.ref == 'refs/heads/develop'
       uses: actions/upload-artifact@v4
       with:
         name: published-app
@@ -74,7 +78,7 @@ jobs:
   download-artifact:
     runs-on: ubuntu-latest
     needs: build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    if: env.TEST_FAILED == '0' && github.event_name == 'push' && github.ref == 'refs/heads/develop'
 
     steps:
     - name: ⬇️ Download Published Artifact
