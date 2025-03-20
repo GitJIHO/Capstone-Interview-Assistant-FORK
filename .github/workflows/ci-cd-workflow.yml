@@ -28,6 +28,10 @@ jobs:
     - name: 🔐 Trust ASP.NET Core Developer Certificate
       run: dotnet dev-certs https --trust
 
+    - name: 🛠️ Install trx2junit Tool
+      if: github.event_name == 'pull_request'
+      run: dotnet tool install --global trx2junit
+      
     - name: 📦 Restore Dependencies
       run: dotnet restore
 
@@ -62,9 +66,7 @@ jobs:
 
     - name: 🔄 Convert Test Results to JUnit Format
       if: github.event_name == 'pull_request'
-      run: |
-        dotnet tool install --global trx2junit
-        find ./test-results -name '*.trx' -exec trx2junit {} \;
+      run: find ./test-results -name '*.trx' -exec trx2junit {} \;
 
     - name: 📑 Publish Test Results as PR Comment
       if: github.event_name == 'pull_request'
