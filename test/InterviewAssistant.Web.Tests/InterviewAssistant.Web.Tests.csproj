@@ -1,5 +1,4 @@
-
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
@@ -10,23 +9,25 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="coverlet.collector" Version="6.*" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.*" />
-    <PackageReference Include="Microsoft.Playwright.NUnit" Version="1.*" />
-    <PackageReference Include="NSubstitute" Version="5.*" />
-    <PackageReference Include="NUnit" Version="4.*" />
-    <PackageReference Include="NUnit.Analyzers" Version="4.*" />
-    <PackageReference Include="NUnit3TestAdapter" Version="4.*" />
-    <PackageReference Include="Shouldly" Version="4.*" />
-    <PackageReference Include="System.Linq.Async" Version="6.*" />
+    <PackageReference Include="coverlet.collector" Version="6.0.2" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="Microsoft.Playwright.NUnit" Version="1.45.1" />
+    <PackageReference Include="NUnit" Version="4.2.2" />
+    <PackageReference Include="NUnit.Analyzers" Version="4.4.0" />
+    <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Microsoft.Playwright.NUnit" />
+    <Using Include="NUnit.Framework" />
+    <Using Include="System.Text.RegularExpressions" />
+    <Using Include="System.Threading.Tasks" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\InterviewAssistant.Web\InterviewAssistant.Web.csproj" />
   </ItemGroup>
 
-<<<<<<< HEAD
-=======
   <ItemGroup>
     <Using Include="System.Text.RegularExpressions" />
     <Using Include="System.Threading.Tasks" />
@@ -36,13 +37,8 @@
     <Using Include="Shouldly" />
   </ItemGroup>
 
->>>>>>> d210d8b57098112bbb19fc1b81471d1756a5cc0a
   <Target Name="InstallPlaywright" AfterTargets="Build">
     <Exec Command="pwsh $(ProjectDir)/bin/$(Configuration)/$(TargetFramework)/playwright.ps1 install" />
   </Target>
 
-<<<<<<< HEAD
 </Project>
-=======
-</Project>
->>>>>>> d210d8b57098112bbb19fc1b81471d1756a5cc0a
