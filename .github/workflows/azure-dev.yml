@@ -23,8 +23,7 @@ jobs:
       tests_passed: ${{ steps.test-status.outputs.tests_passed }}
     env:
       ConnectionStrings__openai: ${{ secrets.OPENAI_CONNECTION_STRING }}
-      ApplicationInsights__ConnectionString: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
-      APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
+      ConnectionStrings__ApplicationInsights: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
       AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
       AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
@@ -109,14 +108,6 @@ jobs:
           --federated-credential-provider "github" `
           --tenant-id "$Env:AZURE_TENANT_ID"
 
-    - name: 🔑 Azure CLI 로그인
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
-      uses: azure/login@v1
-      with:
-        client-id: ${{ vars.AZURE_CLIENT_ID }}
-        tenant-id: ${{ vars.AZURE_TENANT_ID }}
-        subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-
     - name: 🏗️ Provision Infrastructure
       if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
       run: azd provision --no-prompt
@@ -128,63 +119,11 @@ jobs:
       shell: pwsh
       run: |
         azd env set ConnectionStrings__openai "$Env:ConnectionStrings__openai"
-        azd env set ApplicationInsights__ConnectionString "$Env:ApplicationInsights__ConnectionString"
-        azd env set APPLICATIONINSIGHTS_CONNECTION_STRING "$Env:ApplicationInsights__ConnectionString"
+        azd env set ConnectionStrings__ApplicationInsights "$Env:ConnectionStrings__ApplicationInsights"
 
     - name: 🚢 Deploy Application
       if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
       run: azd deploy --no-prompt
       env:
-        ApplicationInsights__ConnectionString: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
-        APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
-
-    - name: 🔧 Container Apps 환경 변수 설정
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
-      shell: pwsh
-      run: |
-        # 리소스 그룹 이름 설정
-        $resourceGroupName = "rg-$Env:AZURE_ENV_NAME"
-        
-        # 리소스 그룹 존재 여부 확인
-        $rgExists = (az group exists --name "$resourceGroupName" 2>/dev/null) -eq "true"
-        
-        # 리소스 그룹이 없으면 찾기
-        if (-not $rgExists) {
-          $groups = az group list --query "[].name" -o tsv
-          $possibleGroups = $groups -split "`n" | Where-Object { 
-            $_ -like "*$Env:AZURE_ENV_NAME*" -or $_ -like "*interview*" -or $_ -like "*capstone*" 
-          }
-          
-          if ($possibleGroups) {
-            $resourceGroupName = $possibleGroups[0].Trim()
-          } else {
-            Write-Host "리소스 그룹을 찾을 수 없습니다."
-            exit 0
-          }
-        }
-        
-        # 컨테이너 앱 목록 가져오기
-        $containerAppsJson = az containerapp list --resource-group "$resourceGroupName" 2>/dev/null
-        
-        # 컨테이너 앱이 없으면 종료
-        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrEmpty($containerAppsJson)) {
-          Write-Host "Container Apps를 찾을 수 없습니다."
-          exit 0
-        }
-        
-        # 각 앱에 환경 변수 설정
-        $containerApps = ($containerAppsJson | ConvertFrom-Json) | ForEach-Object { $_.name }
-        foreach ($app in $containerApps) {
-          if (![string]::IsNullOrWhiteSpace($app)) {
-            Write-Host "🔧 '$app' 환경 변수 설정 중..."
-            az containerapp update --name "$app" --resource-group "$resourceGroupName" --set-env-vars "APPLICATIONINSIGHTS_CONNECTION_STRING=$Env:APPLICATIONINSIGHTS_CONNECTION_STRING" "ApplicationInsights__ConnectionString=$Env:ApplicationInsights__ConnectionString" "ConnectionStrings__openai=$Env:ConnectionStrings__openai" --only-show-errors
-            
-            if ($LASTEXITCODE -eq 0) {
-              Write-Host "✅ '$app' 환경 변수 설정 완료"
-            }
-          }
-        }
-      env:
-        ApplicationInsights__ConnectionString: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
-        APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
+        ConnectionStrings__ApplicationInsights: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
         ConnectionStrings__openai: ${{ secrets.OPENAI_CONNECTION_STRING }}

@@ -2,6 +2,7 @@ using Azure.Monitor.OpenTelemetry.AspNetCore;
 
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
@@ -80,52 +81,41 @@ public static class Extensions
             builder.Services.AddOpenTelemetry().UseOtlpExporter();
         }
 
-        var appInsightsConnectionString = builder.Configuration["ApplicationInsights__ConnectionString"] 
-            ?? builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]
-            ?? Environment.GetEnvironmentVariable("APPLICATIONINSIGHTS_CONNECTION_STRING");
+        var appInsightsConnectionString = builder.Configuration.GetConnectionString("ApplicationInsights");
+        
+        // 환경 변수 확인용 로그 추가
+        Console.WriteLine("==== Application Insights 연결 상태 확인 (ServiceDefaults) ====");
+        Console.WriteLine($"ConnectionStrings:ApplicationInsights 설정됨: {!string.IsNullOrEmpty(appInsightsConnectionString)}");
         
         if (!string.IsNullOrEmpty(appInsightsConnectionString))
         {
-            try
+            // 마스킹된 연결 문자열 로깅 (보안 목적)
+            string maskedConnectionString = appInsightsConnectionString;
+            if (maskedConnectionString.Contains("InstrumentationKey="))
             {
-                builder.Services.AddApplicationInsightsTelemetry(options => options.ConnectionString = appInsightsConnectionString);
-                builder.Services.AddOpenTelemetry().UseAzureMonitor(options => options.ConnectionString = appInsightsConnectionString);
+                int start = maskedConnectionString.IndexOf("InstrumentationKey=") + "InstrumentationKey=".Length;
+                int end = maskedConnectionString.IndexOf(';', start);
+                if (end == -1) end = maskedConnectionString.Length;
                 
-                builder.Services.AddHostedService<AppInsightsStartupLogger>();
+                string key = maskedConnectionString.Substring(start, end - start);
+                string maskedKey = key.Length > 8 
+                    ? $"{key.Substring(0, 4)}...{key.Substring(key.Length - 4)}"
+                    : "****";
+                
+                maskedConnectionString = maskedConnectionString.Replace(key, maskedKey);
+                Console.WriteLine($"연결 문자열: {maskedConnectionString}");
             }
-            catch (Exception)
-            {
-                builder.Services.AddHostedService<AppInsightsWarningLogger>();
-            }
+            
+            builder.Services.AddApplicationInsightsTelemetry(options => 
+                options.ConnectionString = appInsightsConnectionString);
+            
+            builder.Services.AddOpenTelemetry()
+                .UseAzureMonitor(options => 
+                    options.ConnectionString = appInsightsConnectionString);
         }
+        Console.WriteLine("==========================================================");
 
         return builder;
-    }
-    
-    private class AppInsightsStartupLogger : BackgroundService
-    {
-        private readonly ILogger<AppInsightsStartupLogger> _logger;
-
-        public AppInsightsStartupLogger(ILogger<AppInsightsStartupLogger> logger) => _logger = logger;
-
-        protected override Task ExecuteAsync(CancellationToken stoppingToken)
-        {
-            _logger.LogInformation("Application Insights 구성 완료");
-            return Task.CompletedTask;
-        }
-    }
-    
-    private class AppInsightsWarningLogger : BackgroundService
-    {
-        private readonly ILogger<AppInsightsWarningLogger> _logger;
-
-        public AppInsightsWarningLogger(ILogger<AppInsightsWarningLogger> logger) => _logger = logger;
-
-        protected override Task ExecuteAsync(CancellationToken stoppingToken)
-        {
-            _logger.LogWarning("Application Insights 연결 문자열이 누락되었습니다");
-            return Task.CompletedTask;
-        }
     }
 
     public static TBuilder AddDefaultHealthChecks<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder

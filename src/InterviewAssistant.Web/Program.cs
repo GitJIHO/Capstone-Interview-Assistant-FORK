@@ -4,16 +4,6 @@ using InterviewAssistant.Web.Clients;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var appInsightsConnectionString = builder.Configuration["ApplicationInsights__ConnectionString"] 
-    ?? builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]
-    ?? Environment.GetEnvironmentVariable("APPLICATIONINSIGHTS_CONNECTION_STRING");
-
-if (!string.IsNullOrEmpty(appInsightsConnectionString))
-{
-    builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"] = appInsightsConnectionString;
-    builder.Services.AddApplicationInsightsTelemetry(options => options.ConnectionString = appInsightsConnectionString);
-}
-
 // Add service defaults & Aspire client integrations.
 builder.AddServiceDefaults();
 
