@@ -6,49 +6,20 @@ param(
     [string]$ApplicationInsightsConnectionString,
     
     [Parameter(Mandatory=$false)]
-    [string]$ClientId,
-    
-    [Parameter(Mandatory=$false)]
-    [string]$TenantId,
-    
-    [Parameter(Mandatory=$false)]
-    [string]$SubscriptionId
+    [switch]$SkipLoginCheck
 )
 
-# Azure CLI 로그인 시도 (GitHub Action에서 실행 시)
-Write-Host "🔐 Azure CLI로 로그인 시도 중..."
-if (-not [string]::IsNullOrEmpty($ClientId) -and -not [string]::IsNullOrEmpty($TenantId)) {
-    try {
-        Write-Host "GitHub Action 환경에서 페더레이션 자격 증명을 사용하여 로그인 중..."
-        # GitHub Actions 환경에서 페더레이션 자격 증명으로 로그인
-        az login --service-principal --username $ClientId --tenant $TenantId --federated-token $env:ACTIONS_ID_TOKEN_REQUEST_TOKEN
-        
-        if ($LASTEXITCODE -ne 0) {
-            throw "페더레이션 자격 증명을 사용한 로그인 실패"
-        }
-        
-        # 구독 지정
-        if (-not [string]::IsNullOrEmpty($SubscriptionId)) {
-            Write-Host "Azure 구독 설정 중: $SubscriptionId"
-            az account set --subscription $SubscriptionId
-        }
-        
-        Write-Host "✅ Azure 로그인 성공"
+# Azure CLI 로그인 상태 확인 (생략 가능)
+if (-not $SkipLoginCheck) {
+    Write-Host "🔍 Azure CLI 로그인 상태 확인 중..."
+    $loginStatus = az account show 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "❌ Azure CLI에 로그인되어 있지 않습니다. GitHub Actions에서는 이 단계 이전에 로그인을 수행하세요."
+        Write-Host "로그인 오류: $loginStatus"
+        exit 1
     }
-    catch {
-        Write-Host "⚠️ 페더레이션 자격 증명으로 로그인 실패, 'az login'이 이미 실행되었는지 확인합니다..."
-    }
+    Write-Host "✅ Azure 로그인 확인 완료"
 }
-
-# Azure CLI 로그인 상태 확인
-Write-Host "🔍 Azure CLI 로그인 상태 확인 중..."
-$loginStatus = az account show 2>&1
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "❌ Azure CLI에 로그인되어 있지 않습니다. 이 스크립트를 실행하기 전에 'az login'을 실행하세요."
-    Write-Host "로그인 오류: $loginStatus"
-    exit 1
-}
-Write-Host "✅ Azure 로그인 확인 완료"
 
 # 리소스 그룹 이름 설정
 $resourceGroup = "rg-$ResourceGroupPrefix"
