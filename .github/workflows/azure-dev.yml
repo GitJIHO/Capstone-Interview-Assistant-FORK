@@ -109,51 +109,28 @@ jobs:
           --federated-credential-provider "github" `
           --tenant-id "$Env:AZURE_TENANT_ID"
 
-    - name: ⚙️ 디버그: Azure Developer CLI 버전 및 상태 확인
+    - name: 🏗️ Provision Infrastructure
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
+      run: azd provision --no-prompt
+      env:
+        AZD_INITIAL_ENVIRONMENT_CONFIG: ${{ secrets.AZD_INITIAL_ENVIRONMENT_CONFIG }}
+
+    - name: 🔧 Set Azure Environment Variables
       if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
       shell: pwsh
       run: |
-        Write-Host "🔍 azd 버전: $(azd version)"
-        Write-Host "📂 현재 디렉토리: $(Get-Location)"
-        Write-Host "📄 파일 목록:"
-        Get-ChildItem -Force
-        if (Test-Path azure.yaml) {
-          Write-Host "✅ azure.yaml 파일 존재"
-          Get-Content azure.yaml
-        } else {
-          Write-Host "❌ azure.yaml 파일 없음"
-        }
+        azd env set ConnectionStrings__openai "$Env:ConnectionStrings__openai"
+        azd env set ApplicationInsights__ConnectionString "$Env:ApplicationInsights__ConnectionString"
+        azd env set APPLICATIONINSIGHTS_CONNECTION_STRING "$Env:ApplicationInsights__ConnectionString"
 
-    - name: 🚢 환경 변수 설정 및 인프라 준비
+    - name: 🚢 Deploy Application
       if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
-      shell: pwsh
-      run: |
-        # 리소스 그룹이 존재하지 않으면 생성
-        $resourceGroup = "$Env:AZURE_ENV_NAME-rg"
-        $location = "$Env:AZURE_LOCATION"
-        
-        Write-Host "🔍 리소스 그룹 확인: $resourceGroup, 위치: $location"
-        
-        # 리소스 그룹 확인 및 생성
-        $rgExists = $(az group exists --name $resourceGroup)
-        if ($rgExists -eq "false") {
-          Write-Host "📦 리소스 그룹 생성 중..."
-          az group create --name $resourceGroup --location $location
-        } else {
-          Write-Host "✅ 리소스 그룹 확인 완료"
-        }
-        
-        # 필요한 환경 변수들을 설정
-        Write-Host "🔧 환경 변수 설정 중..."
-        
-        # Application Insights 연결 문자열 확인 및 설정
-        if ([string]::IsNullOrEmpty("$Env:ApplicationInsights__ConnectionString") -and [string]::IsNullOrEmpty("$Env:APPLICATIONINSIGHTS_CONNECTION_STRING")) {
-          Write-Host "❌ Application Insights 연결 문자열이 설정되지 않았습니다" -ForegroundColor Red
-        } else {
-          Write-Host "✅ Application Insights 연결 문자열이 설정되었습니다" -ForegroundColor Green
-        }
+      run: azd deploy --no-prompt
+      env:
+        ApplicationInsights__ConnectionString: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
+        APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
 
-    - name: 🚢 어플리케이션 배포 및 환경 변수 설정
+    - name: 🔧 직접 Container Apps 환경 변수 설정
       if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
       shell: pwsh
       run: |
@@ -164,20 +141,14 @@ jobs:
         
         Write-Host "🔍 리소스 그룹: $resourceGroup, 웹앱: $webApp, API앱: $apiApp"
         
-        # 애플리케이션 배포 (간단한 예시)
-        Write-Host "🚀 애플리케이션 배포 중..."
-        
-        # 환경 변수를 직접 설정
-        Write-Host "🔧 컨테이너 앱 환경 변수 설정 중..."
-        
         # 웹프론트엔드 앱 환경 변수 설정
+        Write-Host "🔧 웹프론트엔드 앱 환경 변수 설정 중..."
         az containerapp update --name $webApp --resource-group $resourceGroup --set-env-vars "APPLICATIONINSIGHTS_CONNECTION_STRING=$Env:APPLICATIONINSIGHTS_CONNECTION_STRING" "ApplicationInsights__ConnectionString=$Env:ApplicationInsights__ConnectionString" "ConnectionStrings__openai=$Env:ConnectionStrings__openai"
         
         # API 서비스 앱 환경 변수 설정
+        Write-Host "🔧 API 서비스 앱 환경 변수 설정 중..."
         az containerapp update --name $apiApp --resource-group $resourceGroup --set-env-vars "APPLICATIONINSIGHTS_CONNECTION_STRING=$Env:APPLICATIONINSIGHTS_CONNECTION_STRING" "ApplicationInsights__ConnectionString=$Env:ApplicationInsights__ConnectionString" "ConnectionStrings__openai=$Env:ConnectionStrings__openai"
-        
-        Write-Host "✅ 환경 변수 설정 완료"
       env:
-        # 배포 명령에서도 환경 변수 직접 전달
-        APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
         ApplicationInsights__ConnectionString: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
+        APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
+        ConnectionStrings__openai: ${{ secrets.OPENAI_CONNECTION_STRING }}
