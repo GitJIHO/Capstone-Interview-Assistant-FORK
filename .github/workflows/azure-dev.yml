@@ -120,9 +120,19 @@ jobs:
       shell: pwsh
       run: |
         azd env set ConnectionStrings__openai "$Env:ConnectionStrings__openai"
+        # Application Insights 연결 문자열 두 가지 형식으로 설정 (호환성 보장)
         azd env set ApplicationInsights__ConnectionString "$Env:ApplicationInsights__ConnectionString"
         azd env set APPLICATIONINSIGHTS_CONNECTION_STRING "$Env:APPLICATIONINSIGHTS_CONNECTION_STRING"
+        
+        # 연결 문자열 설정 확인 로그
+        Write-Host "✅ Application Insights 연결 문자열 설정 완료"
 
     - name: 🚢 Deploy Application
       if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
-      run: azd deploy --no-prompt
+      run: |
+        echo "::debug::환경 변수 설정 확인: APPLICATIONINSIGHTS_CONNECTION_STRING 존재 여부: $(if [[ -n \"$APPLICATIONINSIGHTS_CONNECTION_STRING\" ]]; then echo 'YES'; else echo 'NO'; fi)"
+        azd deploy --no-prompt
+      env:
+        # 배포 명령에서도 환경 변수 직접 전달 (중요)
+        APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
+        ApplicationInsights__ConnectionString: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}

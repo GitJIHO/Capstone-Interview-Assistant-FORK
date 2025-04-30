@@ -91,17 +91,16 @@ public static class Extensions
             appInsightsConnectionString = Environment.GetEnvironmentVariable("APPLICATIONINSIGHTS_CONNECTION_STRING");
         }
         
-        // 하드코딩된 백업 연결 문자열 (최후의 수단으로 시도)
-        if (string.IsNullOrEmpty(appInsightsConnectionString) && !builder.Environment.IsDevelopment())
-        {
-            appInsightsConnectionString = "InstrumentationKey=a3a8c178-fa49-467d-a026-8d4b451d8dd8;IngestionEndpoint=https://eastus-8.in.applicationinsights.azure.com/;LiveEndpoint=https://eastus.livediagnostics.monitor.azure.com/;ApplicationId=f7dde35b-7fa8-4f2f-867d-233d98b0bc77";
-        }
+        // 하드코딩 제거 - GitHub 시크릿 사용으로 대체
+        Console.WriteLine("[ServiceDefaults] 🔍 Application Insights 연결 문자열 확인 중...");
+        Console.WriteLine($"[ServiceDefaults] 연결 상태: {(!string.IsNullOrEmpty(appInsightsConnectionString) ? "✅ 설정됨" : "❌ 설정되지 않음")}");
         
         // 안전한 로깅 방식으로 변경 (BuildServiceProvider 제거)
         if (!string.IsNullOrEmpty(appInsightsConnectionString))
         {
             // 마스킹된 연결 문자열 로깅 (보안을 위해)
             string maskedConnectionString = MaskConnectionString(appInsightsConnectionString);
+            Console.WriteLine($"[ServiceDefaults] Application Insights 연결 문자열: {maskedConnectionString}");
             Debug.WriteLine($"[ServiceDefaults] Application Insights 연결 문자열: {maskedConnectionString}");
             
             try
@@ -119,6 +118,7 @@ public static class Extensions
                         options.ConnectionString = appInsightsConnectionString;
                     });
                 
+                Console.WriteLine("[ServiceDefaults] ✅ Application Insights 구성 완료");
                 Debug.WriteLine("[ServiceDefaults] Application Insights 구성 완료");
                 
                 // 로거를 직접 가져오는 대신, 시작할 때 로그를 작성할 수 있도록 로깅 콜백 등록
@@ -126,12 +126,14 @@ public static class Extensions
             }
             catch (Exception ex)
             {
+                Console.WriteLine($"[ServiceDefaults] ⚠️ Application Insights 오류: {ex.Message}");
                 Debug.WriteLine($"[ServiceDefaults] Application Insights 오류: {ex.Message}");
                 // 예외를 삼키지만 디버그 로그는 남김
             }
         }
         else
         {
+            Console.WriteLine("[ServiceDefaults] ❌ Application Insights 연결 문자열 없음");
             Debug.WriteLine("[ServiceDefaults] Application Insights 연결 문자열 없음");
             // 애플리케이션 시작 시 경고 로그를 남기는 서비스 등록
             builder.Services.AddHostedService<AppInsightsWarningLogger>();
