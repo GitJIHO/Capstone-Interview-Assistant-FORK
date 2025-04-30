@@ -81,15 +81,32 @@ public static class Extensions
             builder.Services.AddOpenTelemetry().UseOtlpExporter();
         }
 
-        var appInsightsConnectionString = builder.Configuration.GetConnectionString("ApplicationInsights");
-        
-        // 환경 변수 확인용 로그 추가
+        // 모든 가능한 환경 변수 형식 확인
         Console.WriteLine("==== Application Insights 연결 상태 확인 (ServiceDefaults) ====");
-        Console.WriteLine($"ConnectionStrings:ApplicationInsights 설정됨: {!string.IsNullOrEmpty(appInsightsConnectionString)}");
+        var appInsightsFromConnectionString = builder.Configuration.GetConnectionString("ApplicationInsights");
+        var appInsightsFromSection = builder.Configuration["ApplicationInsights__ConnectionString"];
+        var appInsightsFromEnv = builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
+        var appInsightsFromDirectEnv = Environment.GetEnvironmentVariable("APPLICATIONINSIGHTS_CONNECTION_STRING");
+        var appInsightsFromDirectConnStr = Environment.GetEnvironmentVariable("ConnectionStrings__ApplicationInsights");
+        
+        Console.WriteLine($"ConnectionStrings:ApplicationInsights: {!string.IsNullOrEmpty(appInsightsFromConnectionString)}");
+        Console.WriteLine($"ApplicationInsights__ConnectionString: {!string.IsNullOrEmpty(appInsightsFromSection)}");
+        Console.WriteLine($"APPLICATIONINSIGHTS_CONNECTION_STRING: {!string.IsNullOrEmpty(appInsightsFromEnv)}");
+        Console.WriteLine($"환경변수 APPLICATIONINSIGHTS_CONNECTION_STRING: {!string.IsNullOrEmpty(appInsightsFromDirectEnv)}");
+        Console.WriteLine($"환경변수 ConnectionStrings__ApplicationInsights: {!string.IsNullOrEmpty(appInsightsFromDirectConnStr)}");
+        
+        // 가능한 모든 방법으로 연결 문자열 취득 시도
+        var appInsightsConnectionString = appInsightsFromConnectionString 
+            ?? appInsightsFromSection
+            ?? appInsightsFromEnv
+            ?? appInsightsFromDirectEnv
+            ?? appInsightsFromDirectConnStr;
+        
+        Console.WriteLine($"최종 Application Insights 연결 상태: {!string.IsNullOrEmpty(appInsightsConnectionString)}");
         
         if (!string.IsNullOrEmpty(appInsightsConnectionString))
         {
-            // 마스킹된 연결 문자열 로깅 (보안 목적)
+            // 마스킹된 연결 문자열 로깅
             string maskedConnectionString = appInsightsConnectionString;
             if (maskedConnectionString.Contains("InstrumentationKey="))
             {

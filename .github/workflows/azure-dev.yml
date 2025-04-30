@@ -118,12 +118,22 @@ jobs:
       if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
       shell: pwsh
       run: |
+        # OpenAI 연결 문자열 설정
         azd env set ConnectionStrings__openai "$Env:ConnectionStrings__openai"
+        
+        # Application Insights 연결 문자열을 다양한 형식으로 설정
         azd env set ConnectionStrings__ApplicationInsights "$Env:ConnectionStrings__ApplicationInsights"
+        azd env set ApplicationInsights__ConnectionString "$Env:ConnectionStrings__ApplicationInsights"
+        azd env set APPLICATIONINSIGHTS_CONNECTION_STRING "$Env:ConnectionStrings__ApplicationInsights"
+        
+        Write-Host "✅ 환경 변수 설정 완료"
+        azd env get-values
 
     - name: 🚢 Deploy Application
       if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
       run: azd deploy --no-prompt
       env:
         ConnectionStrings__ApplicationInsights: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
+        ApplicationInsights__ConnectionString: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
+        APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
         ConnectionStrings__openai: ${{ secrets.OPENAI_CONNECTION_STRING }}
