@@ -144,23 +144,31 @@ jobs:
       run: |
         # 현재 리소스 그룹 이름과 컨테이너 앱 이름 가져오기
         $resourceGroup = "$Env:AZURE_ENV_NAME-rg"
-        $webApp = "webfrontend"
-        $apiApp = "apiservice"
+        $appName = "capstone-interview-assistant-app"  # azure.yaml에 정의된 앱 이름
         
-        Write-Host "🔍 리소스 그룹: $resourceGroup, 웹앱: $webApp, API앱: $apiApp"
+        Write-Host "🔍 리소스 그룹: $resourceGroup, 앱: $appName"
         
         # Azure CLI 인증 상태 확인
         Write-Host "🔒 Azure CLI 인증 상태 확인 중..."
         $azAccount = az account show --query "name" -o tsv
         Write-Host "✅ Azure 계정 로그인됨: $azAccount"
         
-        # 웹프론트엔드 앱 환경 변수 설정
-        Write-Host "🔧 웹프론트엔드 앱 환경 변수 설정 중..."
-        az containerapp update --name $webApp --resource-group $resourceGroup --set-env-vars "APPLICATIONINSIGHTS_CONNECTION_STRING=$Env:APPLICATIONINSIGHTS_CONNECTION_STRING" "ApplicationInsights__ConnectionString=$Env:ApplicationInsights__ConnectionString" "ConnectionStrings__openai=$Env:ConnectionStrings__openai"
+        # 실제 컨테이너 앱 목록 확인
+        Write-Host "📋 현재 리소스 그룹의 Container Apps 목록 조회 중..."
+        $containerApps = az containerapp list --resource-group $resourceGroup --query "[].name" -o tsv
+        Write-Host "📋 발견된 Container Apps: $containerApps"
         
-        # API 서비스 앱 환경 변수 설정
-        Write-Host "🔧 API 서비스 앱 환경 변수 설정 중..."
-        az containerapp update --name $apiApp --resource-group $resourceGroup --set-env-vars "APPLICATIONINSIGHTS_CONNECTION_STRING=$Env:APPLICATIONINSIGHTS_CONNECTION_STRING" "ApplicationInsights__ConnectionString=$Env:ApplicationInsights__ConnectionString" "ConnectionStrings__openai=$Env:ConnectionStrings__openai"
+        foreach ($app in $containerApps.Split("`n")) {
+          if (![string]::IsNullOrWhiteSpace($app)) {
+            Write-Host "🔧 앱 '$app' 환경 변수 설정 중..."
+            az containerapp update --name $app --resource-group $resourceGroup --set-env-vars "APPLICATIONINSIGHTS_CONNECTION_STRING=$Env:APPLICATIONINSIGHTS_CONNECTION_STRING" "ApplicationInsights__ConnectionString=$Env:ApplicationInsights__ConnectionString" "ConnectionStrings__openai=$Env:ConnectionStrings__openai"
+            if ($LASTEXITCODE -eq 0) {
+              Write-Host "✅ '$app' 환경 변수 설정 성공"
+            } else {
+              Write-Host "❌ '$app' 환경 변수 설정 실패"
+            }
+          }
+        }
       env:
         ApplicationInsights__ConnectionString: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
         APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
