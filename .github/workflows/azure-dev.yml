@@ -24,6 +24,7 @@ jobs:
     env:
       ConnectionStrings__openai: ${{ secrets.OPENAI_CONNECTION_STRING }}
       ApplicationInsights__ConnectionString: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
+      APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
       AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
       AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
@@ -120,6 +121,7 @@ jobs:
       run: |
         azd env set ConnectionStrings__openai "$Env:ConnectionStrings__openai"
         azd env set ApplicationInsights__ConnectionString "$Env:ApplicationInsights__ConnectionString"
+        azd env set APPLICATIONINSIGHTS_CONNECTION_STRING "$Env:APPLICATIONINSIGHTS_CONNECTION_STRING"
 
     - name: 🚢 Deploy Application
       if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'

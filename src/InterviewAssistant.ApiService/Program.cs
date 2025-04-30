@@ -15,6 +15,15 @@ var builder = WebApplication.CreateBuilder(args);
 var appInsightsConnectionString = builder.Configuration["ApplicationInsights__ConnectionString"] 
     ?? builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
 
+// 연결 문자열이 없는 경우 하드코딩된 값을 대체 사용 - 실제 배포에서 사용
+if (string.IsNullOrEmpty(appInsightsConnectionString) && builder.Environment.IsProduction())
+{
+    appInsightsConnectionString = "InstrumentationKey=a3a8c178-fa49-467d-a026-8d4b451d8dd8;IngestionEndpoint=https://eastus-8.in.applicationinsights.azure.com/;LiveEndpoint=https://eastus.livediagnostics.monitor.azure.com/;ApplicationId=f7dde35b-7fa8-4f2f-867d-233d98b0bc77";
+    
+    // 환경 변수로 설정하여 다른 코드에서도 액세스 가능하게 함
+    Environment.SetEnvironmentVariable("APPLICATIONINSIGHTS_CONNECTION_STRING", appInsightsConnectionString);
+}
+
 Console.WriteLine("====================================================================");
 Console.WriteLine($"Application Insights 연결 상태: {(!string.IsNullOrEmpty(appInsightsConnectionString) ? "설정됨" : "설정되지 않음")}");
 
@@ -33,6 +42,12 @@ if (!string.IsNullOrEmpty(appInsightsConnectionString))
     }
     
     Console.WriteLine($"연결 문자열(마스킹됨): {maskedConnectionString}");
+    
+    // 직접 Application Insights 구성
+    builder.Services.AddApplicationInsightsTelemetry(options => 
+    {
+        options.ConnectionString = appInsightsConnectionString;
+    });
 }
 Console.WriteLine("====================================================================");
 
