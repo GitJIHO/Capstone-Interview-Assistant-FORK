@@ -131,4 +131,9 @@ jobs:
       run: |
         ./scripts/set-containerapp-env.ps1 `
           -ResourceGroupPrefix "$Env:AZURE_ENV_NAME" `
-          -ApplicationInsightsConnectionString "${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}"
+          -ApplicationInsightsConnectionString "${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}" `
+          -ClientId "$Env:AZURE_CLIENT_ID" `
+          -TenantId "$Env:AZURE_TENANT_ID" `
+          -SubscriptionId "$Env:AZURE_SUBSCRIPTION_ID"
+      env:
+        ACTIONS_ID_TOKEN_REQUEST_TOKEN: ${{ secrets.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
