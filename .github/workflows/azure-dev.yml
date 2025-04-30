@@ -143,7 +143,7 @@ jobs:
       shell: pwsh
       run: |
         # 환경 변수 및 계정 정보 확인
-        $resourceGroupName = "$Env:AZURE_ENV_NAME-rg"
+        $resourceGroupName = "$Env:rg-AZURE_ENV_NAME"
         $subscriptionId = "$Env:AZURE_SUBSCRIPTION_ID"
         
         Write-Host "🔍 환경 정보 확인: AZURE_ENV_NAME=$Env:AZURE_ENV_NAME, AZURE_SUBSCRIPTION_ID=$subscriptionId"
@@ -174,7 +174,6 @@ jobs:
               Write-Host "   - $g"
             }
             # 첫 번째로 발견된 관련 그룹 사용
-            $resourceGroupName = $possibleGroups[0]
             Write-Host "✅ 발견된 리소스 그룹을 사용합니다: $resourceGroupName"
           } else {
             Write-Host "❌ 관련된 리소스 그룹을 찾을 수 없습니다."
