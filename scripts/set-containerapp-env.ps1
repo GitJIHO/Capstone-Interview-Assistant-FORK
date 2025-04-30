@@ -3,26 +3,8 @@ param(
     [string]$ResourceGroupPrefix,
     
     [Parameter(Mandatory=$true)]
-    [string]$ApplicationInsightsConnectionString,
-    
-    [Parameter(Mandatory=$false)]
-    [string]$ClientId,
-    
-    [Parameter(Mandatory=$false)]
-    [string]$TenantId
+    [string]$ApplicationInsightsConnectionString
 )
-
-# Azure 로그인 (제공된 경우)
-if (![string]::IsNullOrEmpty($ClientId) -and ![string]::IsNullOrEmpty($TenantId)) {
-    Write-Host "🔑 Azure에 로그인 중..."
-    az login --service-principal --username $ClientId --tenant $TenantId --federated-token $env:ACTIONS_ID_TOKEN_REQUEST_TOKEN
-    
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "❌ Azure 로그인 실패"
-        exit 1
-    }
-    Write-Host "✅ Azure 로그인 성공"
-}
 
 # 리소스 그룹 이름 설정
 $resourceGroup = "rg-$ResourceGroupPrefix"

@@ -125,12 +125,10 @@ jobs:
       env:
         ConnectionStrings__openai: ${{ secrets.OPENAI_CONNECTION_STRING }}
         
-    - name: 🔧 Azure Container Apps 환경 변수 설정
+    - name: 🔧 Set Azure Container Apps Environment Variables
       if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
       shell: pwsh
       run: |
         ./scripts/set-containerapp-env.ps1 `
           -ResourceGroupPrefix "$Env:AZURE_ENV_NAME" `
-          -ApplicationInsightsConnectionString "${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}" `
-          -ClientId "$Env:AZURE_CLIENT_ID" `
-          -TenantId "$Env:AZURE_TENANT_ID"
+          -ApplicationInsightsConnectionString "${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}"
