@@ -109,9 +109,74 @@ jobs:
           --federated-credential-provider "github" `
           --tenant-id "$Env:AZURE_TENANT_ID"
 
+    - name: ⚙️ 디버그: Azure Developer CLI 버전 및 상태 확인
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
+      shell: pwsh
+      run: |
+        Write-Host "🔍 azd 버전: $(azd version)"
+        Write-Host "📂 현재 디렉토리: $(Get-Location)"
+        Write-Host "📄 파일 목록:"
+        Get-ChildItem -Force
+        if (Test-Path azure.yaml) {
+          Write-Host "✅ azure.yaml 파일 존재"
+          Get-Content azure.yaml
+        } else {
+          Write-Host "❌ azure.yaml 파일 없음"
+        }
+
+    - name: 🏗️ Azure Developer CLI 프로젝트 초기화 (필요한 경우)
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
+      shell: pwsh
+      run: |
+        # azure.yaml 파일이 없거나 azd 프로젝트가 인식되지 않는 경우
+        if (-not (Test-Path azure.yaml)) {
+          Write-Host "🔧 Azure Developer CLI 프로젝트 초기화 중..."
+          # 환경 이름 설정
+          azd env new "$Env:AZURE_ENV_NAME" --no-prompt
+          
+          # 기존 환경 구성 적용 (있는 경우)
+          if (-not [string]::IsNullOrEmpty("$Env:AZD_INITIAL_ENVIRONMENT_CONFIG")) {
+            Write-Host "⚙️ 기존 환경 구성 적용 중..."
+            $Env:AZD_INITIAL_ENVIRONMENT_CONFIG | Out-File -FilePath temp_config.json
+            azd env set -f temp_config.json
+            Remove-Item temp_config.json
+          }
+          
+          # 환경 변수 설정
+          azd env set ConnectionStrings__openai "$Env:ConnectionStrings__openai"
+          azd env set ApplicationInsights__ConnectionString "$Env:ApplicationInsights__ConnectionString"
+          azd env set APPLICATIONINSIGHTS_CONNECTION_STRING "$Env:APPLICATIONINSIGHTS_CONNECTION_STRING"
+          
+          Write-Host "✅ 환경 초기화 완료"
+        }
+
     - name: 🏗️ Provision Infrastructure
       if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
-      run: azd provision --no-prompt
+      shell: pwsh
+      run: |
+        Write-Host "🔧 Azure 인프라 프로비저닝 중..."
+        # 리소스 그룹이 존재하지 않으면 생성
+        $resourceGroup = "$Env:AZURE_ENV_NAME-rg"
+        $location = "$Env:AZURE_LOCATION"
+        
+        # 리소스 그룹 확인 및 생성
+        $rgExists = $(az group exists --name $resourceGroup)
+        if ($rgExists -eq "false") {
+          Write-Host "📦 리소스 그룹 '$resourceGroup' 생성 중..."
+          az group create --name $resourceGroup --location $location
+        } else {
+          Write-Host "✅ 리소스 그룹 '$resourceGroup' 이미 존재함"
+        }
+        
+        # Container Apps 환경 확인 및 생성
+        $caEnv = "$Env:AZURE_ENV_NAME"
+        $caEnvExists = $(az containerapp env list --resource-group $resourceGroup --query "[?name=='$caEnv'].name" -o tsv)
+        if ([string]::IsNullOrEmpty($caEnvExists)) {
+          Write-Host "🌐 Container Apps 환경 '$caEnv' 생성 중..."
+          az containerapp env create --name $caEnv --resource-group $resourceGroup --location $location
+        } else {
+          Write-Host "✅ Container Apps 환경 '$caEnv' 이미 존재함"
+        }
       env:
         AZD_INITIAL_ENVIRONMENT_CONFIG: ${{ secrets.AZD_INITIAL_ENVIRONMENT_CONFIG }}
 
