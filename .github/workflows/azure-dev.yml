@@ -119,13 +119,22 @@ jobs:
       if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
       shell: pwsh
       run: |
+        # 디버그: AZD 환경 변수 확인
+        Write-Host "🔍 AZD 현재 환경 변수 목록:"
+        azd env get-values
+        
+        # 환경 변수 설정
         azd env set ConnectionStrings__openai "$Env:ConnectionStrings__openai"
-        # Application Insights 연결 문자열 두 가지 형식으로 설정 (호환성 보장)
         azd env set ApplicationInsights__ConnectionString "$Env:ApplicationInsights__ConnectionString"
         azd env set APPLICATIONINSIGHTS_CONNECTION_STRING "$Env:APPLICATIONINSIGHTS_CONNECTION_STRING"
         
-        # 연결 문자열 설정 확인 로그
-        Write-Host "✅ Application Insights 연결 문자열 설정 완료"
+        # 설정 후 다시 확인
+        Write-Host "🔍 AZD 환경 변수 설정 후 목록:"
+        azd env get-values
+        
+        # 환경 확인
+        Write-Host "🔍 AZD 환경 정보:"
+        azd env show
 
     - name: 🚢 Deploy Application
       if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
@@ -136,3 +145,34 @@ jobs:
         # 배포 명령에서도 환경 변수 직접 전달 (중요)
         APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
         ApplicationInsights__ConnectionString: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
+
+    - name: 🔧 직접 Container Apps 환경 변수 설정
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
+      shell: pwsh
+      run: |
+        # 현재 리소스 그룹 이름과 컨테이너 앱 이름 가져오기
+        $resourceGroup = "$Env:AZURE_ENV_NAME-rg"
+        $webApp = "webfrontend"
+        $apiApp = "apiservice"
+        
+        Write-Host "🔍 리소스 그룹: $resourceGroup, 웹앱: $webApp, API앱: $apiApp"
+        
+        # Application Insights 연결 문자열 마스킹 (로그 출력용)
+        $connStr = "$Env:APPLICATIONINSIGHTS_CONNECTION_STRING"
+        if ($connStr -match "InstrumentationKey=([^;]+)") {
+            $key = $matches[1]
+            $maskedKey = $key.Substring(0,4) + "..." + $key.Substring($key.Length-4)
+            $maskedConnStr = $connStr -replace $key, $maskedKey
+        } else {
+            $maskedConnStr = "[마스킹 실패]"
+        }
+        
+        Write-Host "📝 환경 변수 설정 중... (마스킹됨): $maskedConnStr"
+        
+        # 웹프론트엔드 앱 환경 변수 설정
+        az containerapp env var set --name $webApp --resource-group $resourceGroup --vars "APPLICATIONINSIGHTS_CONNECTION_STRING=$Env:APPLICATIONINSIGHTS_CONNECTION_STRING" "ApplicationInsights__ConnectionString=$Env:APPLICATIONINSIGHTS_CONNECTION_STRING"
+        if ($LASTEXITCODE -eq 0) { Write-Host "✅ $webApp 환경 변수 설정 성공" } else { Write-Host "❌ $webApp 환경 변수 설정 실패" }
+        
+        # API 서비스 앱 환경 변수 설정
+        az containerapp env var set --name $apiApp --resource-group $resourceGroup --vars "APPLICATIONINSIGHTS_CONNECTION_STRING=$Env:APPLICATIONINSIGHTS_CONNECTION_STRING" "ApplicationInsights__ConnectionString=$Env:APPLICATIONINSIGHTS_CONNECTION_STRING"
+        if ($LASTEXITCODE -eq 0) { Write-Host "✅ $apiApp 환경 변수 설정 성공" } else { Write-Host "❌ $apiApp 환경 변수 설정 실패" }
