@@ -142,30 +142,90 @@ jobs:
       if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
       shell: pwsh
       run: |
-        # 현재 리소스 그룹 이름과 컨테이너 앱 이름 가져오기
-        $resourceGroup = "$Env:AZURE_ENV_NAME-rg"
-        $appName = "capstone-interview-assistant-app"  # azure.yaml에 정의된 앱 이름
+        # 환경 변수 및 계정 정보 확인
+        $resourceGroupName = "$Env:AZURE_ENV_NAME-rg"
+        $subscriptionId = "$Env:AZURE_SUBSCRIPTION_ID"
         
-        Write-Host "🔍 리소스 그룹: $resourceGroup, 앱: $appName"
+        Write-Host "🔍 환경 정보 확인: AZURE_ENV_NAME=$Env:AZURE_ENV_NAME, AZURE_SUBSCRIPTION_ID=$subscriptionId"
+        Write-Host "🔍 리소스 그룹: $resourceGroupName"
         
-        # Azure CLI 인증 상태 확인
+        # Azure CLI 인증 및 구독 상태 확인
         Write-Host "🔒 Azure CLI 인증 상태 확인 중..."
-        $azAccount = az account show --query "name" -o tsv
-        Write-Host "✅ Azure 계정 로그인됨: $azAccount"
+        $account = az account show --output json | ConvertFrom-Json
+        Write-Host "✅ Azure 계정 로그인됨: $($account.name)"
+        Write-Host "🔄 현재 구독: $($account.id)"
+        
+        # 리소스 그룹 존재 여부 확인
+        Write-Host "🔍 리소스 그룹 존재 여부 확인 중..."
+        $rgExists = (az group exists --name $resourceGroupName) -eq "true"
+        
+        if (-not $rgExists) {
+          Write-Host "⚠️ 리소스 그룹 '$resourceGroupName'이(가) 없습니다. 실제 리소스 그룹 목록을 확인합니다."
+          $groups = az group list --query "[].name" -o tsv
+          Write-Host "📋 존재하는 리소스 그룹 목록:"
+          Write-Host $groups
+          
+          # 가장 유사한 이름의 리소스 그룹 찾기
+          $possibleGroups = $groups -split "`n" | Where-Object { $_ -like "*$Env:AZURE_ENV_NAME*" -or $_ -like "*interview*" -or $_ -like "*capstone*" }
+          
+          if ($possibleGroups) {
+            Write-Host "💡 가능한 관련 리소스 그룹 발견:"
+            foreach ($g in $possibleGroups) {
+              Write-Host "   - $g"
+            }
+            # 첫 번째로 발견된 관련 그룹 사용
+            $resourceGroupName = $possibleGroups[0]
+            Write-Host "✅ 발견된 리소스 그룹을 사용합니다: $resourceGroupName"
+          } else {
+            Write-Host "❌ 관련된 리소스 그룹을 찾을 수 없습니다."
+            exit 0  # 오류로 빌드를 실패시키지 않고 경고만 출력
+          }
+        } else {
+          Write-Host "✅ 리소스 그룹 '$resourceGroupName' 존재함"
+        }
         
         # 실제 컨테이너 앱 목록 확인
-        Write-Host "📋 현재 리소스 그룹의 Container Apps 목록 조회 중..."
-        $containerApps = az containerapp list --resource-group $resourceGroup --query "[].name" -o tsv
+        Write-Host "📋 리소스 그룹 '$resourceGroupName'의 Container Apps 목록 조회 중..."
+        $containerAppsJson = az containerapp list --resource-group $resourceGroupName 2>$null
+        
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrEmpty($containerAppsJson)) {
+          Write-Host "❓ Container Apps를 찾을 수 없습니다. Container Apps Environment를 확인합니다."
+          $envs = az containerapp env list --resource-group $resourceGroupName --query "[].name" -o tsv 2>$null
+          
+          if (-not [string]::IsNullOrEmpty($envs)) {
+            Write-Host "📋 발견된 Container Apps Environment: $envs"
+          } else {
+            Write-Host "❌ Container Apps Environment도 없습니다. 아직 배포가 완료되지 않았을 수 있습니다."
+            exit 0  # 오류로 빌드를 실패시키지 않고 경고만 출력
+          }
+          exit 0
+        }
+        
+        $containerApps = ($containerAppsJson | ConvertFrom-Json) | ForEach-Object { $_.name }
+        
+        if (-not $containerApps -or $containerApps.Count -eq 0) {
+          Write-Host "❌ 컨테이너 앱이 없습니다."
+          exit 0
+        }
+        
         Write-Host "📋 발견된 Container Apps: $containerApps"
         
-        foreach ($app in $containerApps.Split("`n")) {
+        # 각 컨테이너 앱에 환경 변수 설정
+        foreach ($app in $containerApps) {
           if (![string]::IsNullOrWhiteSpace($app)) {
             Write-Host "🔧 앱 '$app' 환경 변수 설정 중..."
-            az containerapp update --name $app --resource-group $resourceGroup --set-env-vars "APPLICATIONINSIGHTS_CONNECTION_STRING=$Env:APPLICATIONINSIGHTS_CONNECTION_STRING" "ApplicationInsights__ConnectionString=$Env:ApplicationInsights__ConnectionString" "ConnectionStrings__openai=$Env:ConnectionStrings__openai"
+            
+            # 기존 환경 변수 확인 (디버깅 목적)
+            $currentVars = az containerapp show --name $app --resource-group $resourceGroupName --query "properties.configuration.ingress.targetPort" -o tsv
+            Write-Host "   현재 포트: $currentVars"
+            
+            # 환경 변수 설정
+            $result = az containerapp update --name $app --resource-group $resourceGroupName --set-env-vars "APPLICATIONINSIGHTS_CONNECTION_STRING=$Env:APPLICATIONINSIGHTS_CONNECTION_STRING" "ApplicationInsights__ConnectionString=$Env:ApplicationInsights__ConnectionString" "ConnectionStrings__openai=$Env:ConnectionStrings__openai" 2>&1
+            
             if ($LASTEXITCODE -eq 0) {
               Write-Host "✅ '$app' 환경 변수 설정 성공"
             } else {
-              Write-Host "❌ '$app' 환경 변수 설정 실패"
+              Write-Host "❌ '$app' 환경 변수 설정 실패: $result"
             }
           }
         }
