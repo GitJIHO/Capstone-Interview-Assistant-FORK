@@ -1,16 +1,12 @@
 using Azure.Monitor.OpenTelemetry.AspNetCore;
-
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.ServiceDiscovery;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
-using System;
 
 namespace Microsoft.Extensions.Hosting;
 
@@ -82,16 +78,16 @@ public static class Extensions
         }
 
         var appInsightsConnectionString = builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
-        
+
         if (!string.IsNullOrEmpty(appInsightsConnectionString))
         {
-            builder.Services.AddApplicationInsightsTelemetry(options => 
+            builder.Services.AddApplicationInsightsTelemetry(options =>
                 options.ConnectionString = appInsightsConnectionString);
-            
+
             builder.Services.AddOpenTelemetry()
-                .UseAzureMonitor(options => 
+                .UseAzureMonitor(options =>
                     options.ConnectionString = appInsightsConnectionString);
-                    
+
             Console.WriteLine("✅ Application Insights connected successfully");
         }
 
