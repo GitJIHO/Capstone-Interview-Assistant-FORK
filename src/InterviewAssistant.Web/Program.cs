@@ -16,6 +16,9 @@ if (string.IsNullOrEmpty(appInsightsConnectionString) && builder.Environment.IsP
     
     // 환경 변수로 설정하여 다른 코드에서도 액세스 가능하게 함
     Environment.SetEnvironmentVariable("APPLICATIONINSIGHTS_CONNECTION_STRING", appInsightsConnectionString);
+    
+    // 구성에도 추가 (Extensions.cs에서 참조할 수 있도록)
+    builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"] = appInsightsConnectionString;
 }
 
 Console.WriteLine("====================================================================");

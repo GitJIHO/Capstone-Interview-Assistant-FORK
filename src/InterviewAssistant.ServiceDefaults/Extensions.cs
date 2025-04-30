@@ -84,18 +84,26 @@ public static class Extensions
         // Enable Azure Monitor exporter for Application Insights
         var appInsightsConnectionString = builder.Configuration["ApplicationInsights__ConnectionString"] 
             ?? builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
+            
+        // 환경 변수에서도 직접 확인 (Program.cs에서 설정한 경우)
+        if (string.IsNullOrEmpty(appInsightsConnectionString))
+        {
+            appInsightsConnectionString = Environment.GetEnvironmentVariable("APPLICATIONINSIGHTS_CONNECTION_STRING");
+        }
         
-        // 연결 문자열 로깅을 위한 ILogger 가져오기
-        var loggerFactory = builder.Services.BuildServiceProvider().GetService<ILoggerFactory>();
-        var logger = loggerFactory?.CreateLogger("ApplicationInsightsConfiguration");
+        // 하드코딩된 백업 연결 문자열 (최후의 수단으로 시도)
+        if (string.IsNullOrEmpty(appInsightsConnectionString) && !builder.Environment.IsDevelopment())
+        {
+            appInsightsConnectionString = "InstrumentationKey=a3a8c178-fa49-467d-a026-8d4b451d8dd8;IngestionEndpoint=https://eastus-8.in.applicationinsights.azure.com/;LiveEndpoint=https://eastus.livediagnostics.monitor.azure.com/;ApplicationId=f7dde35b-7fa8-4f2f-867d-233d98b0bc77";
+        }
         
+        // 안전한 로깅 방식으로 변경 (BuildServiceProvider 제거)
         if (!string.IsNullOrEmpty(appInsightsConnectionString))
         {
             // 마스킹된 연결 문자열 로깅 (보안을 위해)
             string maskedConnectionString = MaskConnectionString(appInsightsConnectionString);
-            logger?.LogInformation("Application Insights 연결 중: {MaskedConnectionString}", maskedConnectionString);
-            Debug.WriteLine($"Application Insights 연결 문자열: {maskedConnectionString}");
-
+            Debug.WriteLine($"[ServiceDefaults] Application Insights 연결 문자열: {maskedConnectionString}");
+            
             try
             {
                 // Application Insights를 직접 추가하여 전체 기능 활성화
@@ -111,22 +119,59 @@ public static class Extensions
                         options.ConnectionString = appInsightsConnectionString;
                     });
                 
-                logger?.LogInformation("Application Insights 구성 완료");
-                Debug.WriteLine("Application Insights 구성 완료");
+                Debug.WriteLine("[ServiceDefaults] Application Insights 구성 완료");
+                
+                // 로거를 직접 가져오는 대신, 시작할 때 로그를 작성할 수 있도록 로깅 콜백 등록
+                builder.Services.AddHostedService<AppInsightsStartupLogger>();
             }
             catch (Exception ex)
             {
-                logger?.LogError(ex, "Application Insights 구성 중 오류 발생");
-                Debug.WriteLine($"Application Insights 오류: {ex.Message}");
+                Debug.WriteLine($"[ServiceDefaults] Application Insights 오류: {ex.Message}");
+                // 예외를 삼키지만 디버그 로그는 남김
             }
         }
         else
         {
-            logger?.LogWarning("Application Insights 연결 문자열을 찾을 수 없습니다");
-            Debug.WriteLine("Application Insights 연결 문자열 없음");
+            Debug.WriteLine("[ServiceDefaults] Application Insights 연결 문자열 없음");
+            // 애플리케이션 시작 시 경고 로그를 남기는 서비스 등록
+            builder.Services.AddHostedService<AppInsightsWarningLogger>();
         }
 
         return builder;
+    }
+    
+    // 시작 시 Application Insights 구성 성공을 로깅하는 백그라운드 서비스
+    private class AppInsightsStartupLogger : BackgroundService
+    {
+        private readonly ILogger<AppInsightsStartupLogger> _logger;
+
+        public AppInsightsStartupLogger(ILogger<AppInsightsStartupLogger> logger)
+        {
+            _logger = logger;
+        }
+
+        protected override Task ExecuteAsync(CancellationToken stoppingToken)
+        {
+            _logger.LogInformation("[ServiceDefaults] Application Insights가 성공적으로 구성되었습니다.");
+            return Task.CompletedTask;
+        }
+    }
+    
+    // 시작 시 Application Insights 연결 문자열 누락 경고를 로깅하는 백그라운드 서비스
+    private class AppInsightsWarningLogger : BackgroundService
+    {
+        private readonly ILogger<AppInsightsWarningLogger> _logger;
+
+        public AppInsightsWarningLogger(ILogger<AppInsightsWarningLogger> logger)
+        {
+            _logger = logger;
+        }
+
+        protected override Task ExecuteAsync(CancellationToken stoppingToken)
+        {
+            _logger.LogWarning("[ServiceDefaults] Application Insights 연결 문자열이 누락되었습니다. 텔레메트리가 전송되지 않을 수 있습니다.");
+            return Task.CompletedTask;
+        }
     }
 
     // 보안을 위해 연결 문자열 마스킹
