@@ -122,8 +122,6 @@ jobs:
     - name: 🚢 Deploy Application
       if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
       run: azd deploy --no-prompt
-      env:
-        ConnectionStrings__openai: ${{ secrets.OPENAI_CONNECTION_STRING }}
         
     - name: 🔧 Azure Login for Container Apps Configuration
       if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
