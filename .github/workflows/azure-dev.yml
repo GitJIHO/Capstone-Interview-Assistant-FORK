@@ -56,7 +56,8 @@ jobs:
         # 테스트용 환경 변수 설정
         echo "APPLICATIONINSIGHTS_CONNECTION_STRING=InstrumentationKey=00000000-0000-0000-0000-000000000000;IngestionEndpoint=https://example.com" >> $GITHUB_ENV
         echo "EnableAzureMonitoring=false" >> $GITHUB_ENV
-
+        echo "IsTestEnvironment=true" >> $GITHUB_ENV
+        
     - name: 🏗️ Build Project
       run: dotnet build --configuration Release
         
@@ -127,6 +128,7 @@ jobs:
         
         # Azure Monitor는 실제 배포 환경에서만 활성화
         azd env set EnableAzureMonitoring true
+        azd env set IsTestEnvironment false
         azd env set AZURE_MONITOR_ENABLE_DASHBOARD true
         azd env set AZURE_MONITOR_ENABLE_TRACING true
         azd env set AZURE_MONITOR_ENABLE_METRICS true

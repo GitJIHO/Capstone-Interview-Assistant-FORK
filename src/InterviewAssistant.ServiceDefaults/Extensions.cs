@@ -78,10 +78,18 @@ public static class Extensions
             builder.Services.AddOpenTelemetry().UseOtlpExporter();
         }
 
-        builder.Services.AddOpenTelemetry()
-            .UseAzureMonitor();
+        // 테스트 환경을 위한 조건부 Application Insights 활성화
+        var enableAzureMonitoring = builder.Configuration.GetValue<bool>("EnableAzureMonitoring", true);
         
-        Console.WriteLine("✅ Azure Monitor automatic provisioning enabled");
+        if (enableAzureMonitoring)
+        {
+            builder.Services.AddOpenTelemetry().UseAzureMonitor();
+            Console.WriteLine("✅ Azure Monitor automatic provisioning enabled");
+        }
+        else
+        {
+            Console.WriteLine("📊 Azure Monitor disabled (test environment)");
+        }
 
         return builder;
     }
