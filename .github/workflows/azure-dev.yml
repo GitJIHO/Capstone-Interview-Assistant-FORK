@@ -124,11 +124,15 @@ jobs:
       if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
       shell: pwsh
       run: |
+        # OpenAI 연결 문자열 설정
         azd env set ConnectionStrings__openai "$Env:ConnectionStrings__openai"
         
-        # Azure Monitor는 실제 배포 환경에서만 활성화
+        # 자동 프로비저닝 활성화 - 이 부분이 Application Insights 자동 생성을 트리거합니다
+        # 아래 설정으로 Aspire.Hosting.Azure.ApplicationInsights가 자동으로 리소스를 생성합니다
         azd env set EnableAzureMonitoring true
         azd env set IsTestEnvironment false
+        
+        # Azure Monitor 추가 설정 (대시보드, 추적, 메트릭, 로깅)
         azd env set AZURE_MONITOR_ENABLE_DASHBOARD true
         azd env set AZURE_MONITOR_ENABLE_TRACING true
         azd env set AZURE_MONITOR_ENABLE_METRICS true
