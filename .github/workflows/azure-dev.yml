@@ -138,43 +138,29 @@ jobs:
 
     - name: 🔧 Verify Azure Monitor Integration
       if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
+      uses: azure/login@v2
+      with:
+        client-id: ${{ vars.AZURE_CLIENT_ID }}
+        tenant-id: ${{ vars.AZURE_TENANT_ID }}
+        subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+    - name: 🔍 Check Application Insights Resources
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
       shell: pwsh
       run: |
-        # 환경 변수에서 직접 정보 가져오기
-        Write-Host "Using Azure subscription ID: $Env:AZURE_SUBSCRIPTION_ID"
-        
-        # 직접 Azure CLI 로그인 시도 (azd 인증이 az에 전파되지 않을 수 있음)
-        try {
-          Write-Host "Attempting Azure CLI login..."
-          # az 로그인 여부 확인
-          $loginCheck = az account show --query "id" -o tsv 2>&1
-          if ($LASTEXITCODE -ne 0) {
-            # GitHub Actions용 Azure 로그인 실행
-            az login --identity
-            if ($LASTEXITCODE -ne 0) {
-              Write-Host "Warning: Login with managed identity failed. Using subscription ID directly."
-              az account set --subscription "$Env:AZURE_SUBSCRIPTION_ID"
-            }
-          } else {
-            Write-Host "Already logged in to Azure CLI"
-          }
-        }
-        catch {
-          Write-Host "Warning: Azure CLI login check failed: $_"
-          Write-Host "Will continue with available permissions"
-        }
-        
         # Application Insights 확장 설치
         Write-Host "Installing Azure Application Insights extension..."
         az extension add --name application-insights --allow-preview true --yes
         
-        # 리소스 그룹 확인 - 환경 변수에서 가져온 값 사용하고 오류 처리 추가
-        $resourceGroup = "$Env:AZURE_ENV_NAME"
+        # 리소스 그룹 확인 - 'rg-' 접두사 추가
+        $resourceGroupPrefix = "$Env:AZURE_ENV_NAME"
+        $resourceGroup = "rg-$resourceGroupPrefix"
         Write-Host "Expected resource group name: $resourceGroup"
         
         # 사용 가능한 리소스 그룹 나열
         Write-Host "Listing available resource groups:"
-        az group list --query "[].name" -o tsv
+        $allGroups = az group list --query "[].name" -o tsv
+        $allGroups | ForEach-Object { Write-Host "- $_" }
         
         # Application Insights 리소스 확인 (허용 실패)
         try {
@@ -195,8 +181,9 @@ jobs:
               # 모든 구독의 Application Insights 리소스 검색
               Write-Host "Searching for Application Insights in all resource groups..."
               $allAppInsights = az resource list --resource-type "microsoft.insights/components" --query "[].{name:name, group:resourceGroup}" -o tsv
+              
               if ($allAppInsights) {
-                Write-Host "✅ Found Application Insights resources in other resource groups: $allAppInsights"
+                Write-Host "✅ Found Application Insights resources: $allAppInsights"
               } else {
                 Write-Host "⚠️ No Application Insights resources found. This may be expected if they haven't been created yet."
               }
@@ -204,24 +191,32 @@ jobs:
           } else {
             Write-Host "⚠️ Resource group '$resourceGroup' not found"
             
-            # 모든 리소스 그룹 검색
+            # 이름에 AZURE_ENV_NAME이 포함된 리소스 그룹 검색
             Write-Host "Searching for resource groups with similar names..."
-            $similarGroups = az group list --query "[?contains(name,'$ResourceGroupPrefix')].name" -o tsv
+            $similarGroups = az group list --query "[?contains(name,'$resourceGroupPrefix')].name" -o tsv
+            
             if ($similarGroups) {
-              Write-Host "Found similar resource groups: $similarGroups"
+              Write-Host "Found similar resource groups:"
+              $similarGroups.Split("`n") | ForEach-Object { Write-Host "- $_" }
               
               # 첫 번째 유사한 그룹에서 검색
-              $firstGroup = ($similarGroups -split '\n')[0]
-              Write-Host "Checking first similar group: $firstGroup"
-              $appInsights = az resource list --resource-group $firstGroup --resource-type "microsoft.insights/components" --query "[].{name:name}" -o tsv
-              if ($appInsights) {
-                Write-Host "✅ Found Application Insights in resource group '$firstGroup': $appInsights"
+              $firstGroup = $similarGroups.Split("`n")[0]
+              if ($firstGroup) {
+                Write-Host "Checking for Application Insights in group: $firstGroup"
+                $appInsights = az resource list --resource-group $firstGroup --resource-type "microsoft.insights/components" --query "[].{name:name}" -o tsv
+                
+                if ($appInsights) {
+                  Write-Host "✅ Found Application Insights in resource group '$firstGroup': $appInsights"
+                } else {
+                  Write-Host "⚠️ No Application Insights found in resource group '$firstGroup'"
+                }
               }
+            } else {
+              Write-Host "No similar resource groups found."
             }
           }
         } catch {
           Write-Host "⚠️ Error checking Application Insights: $($_.Exception.Message)"
-          Write-Host "Continuing deployment process..."
         }
         
         # 완료 메시지
