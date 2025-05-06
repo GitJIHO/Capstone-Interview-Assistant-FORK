@@ -140,28 +140,40 @@ jobs:
       if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
       shell: pwsh
       run: |
-        # Azure CLI 로그인 (간소화된 방식)
-        az login --service-principal `
-          --username "$Env:AZURE_CLIENT_ID" `
-          --tenant "$Env:AZURE_TENANT_ID" `
-          --password "${{ secrets.AZURE_CLIENT_SECRET }}"
+        # azd CLI를 통해 이미 인증되었으므로 별도의 로그인 불필요
+        Write-Host "Using existing Azure CLI authentication from azd..."
         
-        az account set --subscription "$Env:AZURE_SUBSCRIPTION_ID"
+        # Azure CLI에서 현재 구독 확인
+        $currentSubscription = $(azd env get-values -o json | ConvertFrom-Json).azure.subscriptionId
+        Write-Host "Using Azure subscription: $currentSubscription"
         
         # Application Insights 확장 설치
-        az extension add --name application-insights --allow-preview true
+        Write-Host "Installing Azure Application Insights extension..."
+        az extension add --name application-insights --allow-preview true --yes
         
         $resourceGroup = "$Env:AZURE_ENV_NAME"
         Write-Host "Verifying Azure Monitor resources in resource group: $resourceGroup"
         
         # Application Insights 리소스 확인 (허용 실패)
         try {
-          $appInsightsResource = az monitor app-insights component show --resource-group $resourceGroup --query "[].{name:name}" --output tsv
-          
-          if ($appInsightsResource) {
-            Write-Host "✅ Azure Monitor Application Insights successfully provisioned: $appInsightsResource"
+          # 먼저 해당 리소스 그룹이 존재하는지 확인
+          $rgExists = az group show --name $resourceGroup 2>&1
+          if ($?) {
+            # 리소스 그룹에 App Insights 찾기
+            $appInsights = az resource list --resource-group $resourceGroup --resource-type "microsoft.insights/components" --query "[].{name:name}" -o tsv
+            
+            if ($appInsights) {
+              Write-Host "✅ Azure Monitor Application Insights successfully provisioned: $appInsights"
+            } else {
+              Write-Host "⚠️ Application Insights not found in resource group. It might be in another resource group or not yet provisioned."
+              # 다른 리소스 그룹에서 찾기
+              $appInsightsAlt = az resource list --resource-type "microsoft.insights/components" --query "[?tags.aspire=='true'].{name:name, group:resourceGroup}" -o json | ConvertFrom-Json
+              if ($appInsightsAlt) {
+                Write-Host "✅ Found Application Insights resources in other resource groups: $($appInsightsAlt | ConvertTo-Json -Compress)"
+              }
+            }
           } else {
-            Write-Host "⚠️ Azure Monitor Application Insights not found but deployment will continue."
+            Write-Host "⚠️ Resource group $resourceGroup not found."
           }
         } catch {
           Write-Host "⚠️ Error checking Application Insights: $($_.Exception.Message)"
