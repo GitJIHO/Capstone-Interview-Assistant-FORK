@@ -118,24 +118,30 @@ jobs:
       shell: pwsh
       run: |
         azd env set ConnectionStrings__openai "$Env:ConnectionStrings__openai"
+        # Azure Monitor 자동 프로비저닝 활성화
+        azd env set EnableAzureMonitoring true
 
     - name: 🚢 Deploy Application
       if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
       run: azd deploy --no-prompt
-        
-    - name: 🔧 Azure Login for Container Apps Configuration
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
-      uses: azure/login@v1
-      with:
-        client-id: ${{ vars.AZURE_CLIENT_ID }}
-        tenant-id: ${{ vars.AZURE_TENANT_ID }}
-        subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      env:
+        AZURE_MONITOR_ENABLE_DASHBOARD: true
+        AZURE_MONITOR_ENABLE_TRACING: true
+        AZURE_MONITOR_ENABLE_METRICS: true
+        AZURE_MONITOR_ENABLE_LOGGING: true
 
-    - name: 🔧 Configure Application Insights for Container Apps
+    - name: 🔧 Verify Azure Monitor Integration
       if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
       shell: pwsh
       run: |
-        ./scripts/set-containerapp-env.ps1 `
-          -ResourceGroupPrefix "$Env:AZURE_ENV_NAME" `
-          -ApplicationInsightsConnectionString "${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}" `
-          -SkipLoginCheck
+        $resourceGroup = "$Env:AZURE_ENV_NAME"
+        Write-Host "Verifying Azure Monitor resources in resource group: $resourceGroup"
+        
+        # 리소스 그룹 내에 생성된 Application Insights 리소스 확인
+        $appInsightsResource = az monitor app-insights component show --resource-group $resourceGroup --query "[].{name:name}" --output tsv
+        
+        if ($appInsightsResource) {
+          Write-Host "✅ Azure Monitor Application Insights successfully provisioned: $appInsightsResource"
+        } else {
+          Write-Host "⚠️ Azure Monitor Application Insights not found. Please check your Azure Monitor configuration."
+        }

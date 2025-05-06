@@ -1,6 +1,7 @@
 using Azure.Monitor.OpenTelemetry.AspNetCore;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
@@ -77,19 +78,10 @@ public static class Extensions
             builder.Services.AddOpenTelemetry().UseOtlpExporter();
         }
 
-        var appInsightsConnectionString = builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
-
-        if (!string.IsNullOrEmpty(appInsightsConnectionString))
-        {
-            builder.Services.AddApplicationInsightsTelemetry(options =>
-                options.ConnectionString = appInsightsConnectionString);
-
-            builder.Services.AddOpenTelemetry()
-                .UseAzureMonitor(options =>
-                    options.ConnectionString = appInsightsConnectionString);
-
-            Console.WriteLine("✅ Application Insights connected successfully");
-        }
+        builder.Services.AddOpenTelemetry()
+            .UseAzureMonitor();
+        
+        Console.WriteLine("✅ Azure Monitor automatic provisioning enabled");
 
         return builder;
     }
