@@ -140,14 +140,27 @@ jobs:
       if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
       shell: pwsh
       run: |
+        # Azure CLI를 위한 로그인 - azd와는 별도로 필요
+        az login --service-principal `
+          --username "$Env:AZURE_CLIENT_ID" `
+          --tenant "$Env:AZURE_TENANT_ID" `
+          --password-stdin <<< "${{ secrets.AZURE_CLIENT_SECRET }}"
+        
+        az account set --subscription "$Env:AZURE_SUBSCRIPTION_ID"
+        
+        # Application Insights 확장 설치
+        az extension add --name application-insights --allow-preview true
+        
         $resourceGroup = "$Env:AZURE_ENV_NAME"
         Write-Host "Verifying Azure Monitor resources in resource group: $resourceGroup"
         
-        # 리소스 그룹 내에 생성된 Application Insights 리소스 확인
-        $appInsightsResource = az monitor app-insights component show --resource-group $resourceGroup --query "[].{name:name}" --output tsv
-        
-        if ($appInsightsResource) {
-          Write-Host "✅ Azure Monitor Application Insights successfully provisioned: $appInsightsResource"
-        } else {
-          Write-Host "⚠️ Azure Monitor Application Insights not found. Please check your Azure Monitor configuration."
-        }
+        # Application Insights 리소스 확인 (허용 실패)
+        try {
+          $appInsightsResource = az monitor app-insights component show --resource-group $resourceGroup --query "[].{name:name}" --output tsv
+          
+          if ($appInsightsResource) {
+            Write-Host "✅ Azure Monitor Application Insights successfully provisioned: $appInsightsResource"
+          } else {
+            Write-Host "⚠️ Azure Monitor Application Insights not found but deployment will continue."
+          }
+        } catch {
