@@ -120,15 +120,15 @@ jobs:
         azd env set ConnectionStrings__openai "$Env:ConnectionStrings__openai"
         # Azure Monitor 자동 프로비저닝 활성화
         azd env set EnableAzureMonitoring true
+        # CI/CD 배포 설정 추가
+        azd env set AZURE_MONITOR_ENABLE_DASHBOARD true
+        azd env set AZURE_MONITOR_ENABLE_TRACING true
+        azd env set AZURE_MONITOR_ENABLE_METRICS true
+        azd env set AZURE_MONITOR_ENABLE_LOGGING true
 
     - name: 🚢 Deploy Application
       if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
       run: azd deploy --no-prompt
-      env:
-        AZURE_MONITOR_ENABLE_DASHBOARD: true
-        AZURE_MONITOR_ENABLE_TRACING: true
-        AZURE_MONITOR_ENABLE_METRICS: true
-        AZURE_MONITOR_ENABLE_LOGGING: true
 
     - name: 🔧 Verify Azure Monitor Integration
       if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
