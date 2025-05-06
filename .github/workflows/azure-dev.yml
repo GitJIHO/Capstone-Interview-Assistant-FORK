@@ -140,11 +140,7 @@ jobs:
       if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
       shell: pwsh
       run: |
-        # PowerShell에서 안전하게 비밀 전달
-        $password = ConvertTo-SecureString "${{ secrets.AZURE_CLIENT_SECRET }}" -AsPlainText -Force
-        $credential = New-Object System.Management.Automation.PSCredential($Env:AZURE_CLIENT_ID, $password)
-        
-        # Azure CLI 로그인
+        # Azure CLI 로그인 (간소화된 방식)
         az login --service-principal `
           --username "$Env:AZURE_CLIENT_ID" `
           --tenant "$Env:AZURE_TENANT_ID" `
@@ -168,3 +164,6 @@ jobs:
             Write-Host "⚠️ Azure Monitor Application Insights not found but deployment will continue."
           }
         } catch {
+          Write-Host "⚠️ Error checking Application Insights: $($_.Exception.Message)"
+          Write-Host "Continuing deployment process..."
+        }
