@@ -50,6 +50,12 @@ jobs:
       
     - name: 📦 Restore Dependencies
       run: dotnet restore
+        
+    - name: 🔧 Configure Test Environment Variables
+      run: |
+        # 테스트용 환경 변수 설정
+        echo "APPLICATIONINSIGHTS_CONNECTION_STRING=InstrumentationKey=00000000-0000-0000-0000-000000000000;IngestionEndpoint=https://example.com" >> $GITHUB_ENV
+        echo "EnableAzureMonitoring=false" >> $GITHUB_ENV
 
     - name: 🏗️ Build Project
       run: dotnet build --configuration Release
@@ -118,9 +124,9 @@ jobs:
       shell: pwsh
       run: |
         azd env set ConnectionStrings__openai "$Env:ConnectionStrings__openai"
-        # Azure Monitor 자동 프로비저닝 활성화
+        
+        # Azure Monitor는 실제 배포 환경에서만 활성화
         azd env set EnableAzureMonitoring true
-        # CI/CD 배포 설정 추가
         azd env set AZURE_MONITOR_ENABLE_DASHBOARD true
         azd env set AZURE_MONITOR_ENABLE_TRACING true
         azd env set AZURE_MONITOR_ENABLE_METRICS true
