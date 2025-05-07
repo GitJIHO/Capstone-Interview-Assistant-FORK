@@ -7,14 +7,12 @@ param kind string = 'web'
 
 param logAnalyticsWorkspaceId string
 
-// 태그 매개변수 추가
 param tags object = {
   'aspire-resource-name': 'applicationinsights'
 }
 
-// 고유한 이름 생성 방식 수정
 var resourceToken = uniqueString(resourceGroup().id)
-var name = 'appi-${resourceToken}'
+var name = 'applicationinsights-${resourceToken}'
 
 resource applicationinsights 'Microsoft.Insights/components@2020-02-02' = {
   name: name
@@ -23,7 +21,6 @@ resource applicationinsights 'Microsoft.Insights/components@2020-02-02' = {
   properties: {
     Application_Type: applicationType
     WorkspaceResourceId: logAnalyticsWorkspaceId
-    // 추가 속성 설정
     DisableLocalAuth: false
     publicNetworkAccessForIngestion: 'Enabled'
     publicNetworkAccessForQuery: 'Enabled'
