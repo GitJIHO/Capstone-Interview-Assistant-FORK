@@ -131,13 +131,9 @@ jobs:
         azd env set EnableAzureMonitoring true
         azd env set IsTestEnvironment false
         
-        # Application Insights 생성을 위한 명시적 설정
+        # Application Insights 자동 활성화 설정
         azd env set AZURE_ENABLE_APP_INSIGHTS true
         azd env set AZURE_USE_APPLICATION_INSIGHTS true
-        
-        # 중요: 템플릿에서 요구하는 환경 변수 명시적 설정
-        # 실제 값은 중요하지 않음 - 배포 시 오버라이드됨
-        azd env set APPLICATIONINSIGHTS_APPINSIGHTSCONNECTIONSTRING "InstrumentationKey=00000000-0000-0000-0000-000000000000"
         
         # Azure Monitor 추가 설정
         azd env set AZURE_MONITOR_ENABLE_DASHBOARD true
@@ -151,15 +147,8 @@ jobs:
 
     - name: 🚢 Deploy Application
       if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
-      shell: pwsh
-      run: |
-        # 배포 전 환경 변수 추가
-        $env:APPLICATIONINSIGHTS_APPINSIGHTSCONNECTIONSTRING = "InstrumentationKey=00000000-0000-0000-0000-000000000000"
-        
-        # 수정된 환경 변수로 배포 실행
-        azd deploy --no-prompt
+      run: azd up --no-prompt
       env:
-        APPLICATIONINSIGHTS_APPINSIGHTSCONNECTIONSTRING: "InstrumentationKey=00000000-0000-0000-0000-000000000000"
         EnableAzureMonitoring: "true"
         AZURE_ENABLE_APP_INSIGHTS: "true"
         AZURE_USE_APPLICATION_INSIGHTS: "true"
@@ -260,60 +249,61 @@ jobs:
         # 리소스 그룹 이름 설정
         $resourceGroup = "rg-$Env:AZURE_ENV_NAME"
         
-        # 모든 컨테이너 앱 나열 및 리소스 그룹 검증
-        Write-Host "📋 Listing all container apps in subscription..."
-        az containerapp list --query "[].{name:name, resourceGroup:resourceGroup}" -o table
+        # 컨테이너 앱 환경 조사
+        Write-Host "📋 Examining Container App Environment in resource group $resourceGroup..."
+        $containerEnv = az containerapp env list --resource-group $resourceGroup --query "[0]" | ConvertFrom-Json
         
-        # webfrontend 컨테이너 앱 찾기
-        $containerDetails = az containerapp list --query "[?contains(name, 'webfrontend')]" | ConvertFrom-Json
-        
-        if ($containerDetails.Count -gt 0) {
-          $webAppName = $containerDetails[0].name
-          $appResourceGroup = $containerDetails[0].resourceGroup
+        if ($containerEnv) {
+          Write-Host "🔍 Container App Environment found: $($containerEnv.name)"
           
-          Write-Host "✅ Found container app: $webAppName in resource group: $appResourceGroup"
-          Write-Host "📝 Checking environment variables for $webAppName"
+          # 내부 로그 분석 설정 확인
+          Write-Host "📊 Checking Log Analytics settings..."
+          $logAnalyticsId = az containerapp env show --name $containerEnv.name --resource-group $resourceGroup --query "properties.appLogsConfiguration.logAnalyticsConfiguration.customerId" -o tsv
           
-          # 환경 변수 목록 확인 - 리소스 그룹 포함
-          az containerapp show -n $webAppName --resource-group $appResourceGroup --query "properties.template.containers[0].env" -o table
-          
-          # Application Insights 연결 문자열이 있는지 확인
-          $hasInsightsString = az containerapp show -n $webAppName --resource-group $appResourceGroup --query "properties.template.containers[0].env[?name=='APPLICATIONINSIGHTS_CONNECTION_STRING']" -o tsv
-          
-          if ($hasInsightsString) {
-            Write-Host "✅ Application Insights connection string is set in container environment"
-          } else {
-            # 대체 환경 변수 이름도 확인
-            $hasAltInsightsString = az containerapp show -n $webAppName --resource-group $appResourceGroup --query "properties.template.containers[0].env[?name=='APPLICATIONINSIGHTS_APPINSIGHTSCONNECTIONSTRING']" -o tsv
+          if ($logAnalyticsId) {
+            Write-Host "✅ Log Analytics workspace found: $logAnalyticsId"
             
-            if ($hasAltInsightsString) {
-              Write-Host "✅ Application Insights connection string found with alternative name"
-            } else {
-              Write-Host "⚠️ No Application Insights connection string found in container environment"
-              
-              # 모든 환경 변수 출력하여 디버깅
-              Write-Host "🔍 All environment variables in container:"
-              az containerapp show -n $webAppName --resource-group $appResourceGroup --query "properties.template.containers[0].env[].name" -o table
+            # 이 Log Analytics가 Application Insights와 연결되어 있는지 확인
+            Write-Host "🔍 Checking all Log Analytics workspaces..."
+            $logWorkspaces = az monitor log-analytics workspace list --resource-group $resourceGroup --query "[].{id:id, name:name}" -o json | ConvertFrom-Json
+            
+            if ($logWorkspaces) {
+              Write-Host "Found Log Analytics workspaces: $($logWorkspaces | ConvertTo-Json -Compress)"
             }
           }
+        }
+        
+        # Container Apps의 구성 확인
+        $webfrontend = az containerapp list --resource-group $resourceGroup --query "[?contains(name, 'webfrontend')]" | ConvertFrom-Json
+        if ($webfrontend) {
+          $appName = $webfrontend[0].name
+          Write-Host "✅ Found container app: $appName"
           
-          # 로그 확인
-          Write-Host "📜 Recent logs from container (if available):"
-          try {
-            az containerapp logs show -n $webAppName --resource-group $appResourceGroup --tail 20
-          } catch {
-            Write-Host "⚠️ Could not retrieve logs: $($_.Exception.Message)"
+          # 환경 변수에서 연결 정보 확인
+          Write-Host "🔍 Checking environment variables..."
+          $envVars = az containerapp show --name $appName --resource-group $resourceGroup --query "properties.template.containers[0].env" -o json | ConvertFrom-Json
+          
+          # Application Insights 관련 환경 변수 필터링
+          $insightsVars = $envVars | Where-Object { $_.name -like "*INSIGHT*" -or $_.name -like "*MONITOR*" }
+          
+          if ($insightsVars) {
+            Write-Host "✅ Found Application Insights related environment variables:"
+            $insightsVars | ForEach-Object { Write-Host "- $($_.name): $($_.value)" }
           }
-        } else {
-          Write-Host "⚠️ Unable to find deployed container app with 'webfrontend' in the name"
-          Write-Host "🔍 Checking all available container apps in resource group $resourceGroup..."
           
-          # 해당 리소스 그룹의 모든 컨테이너 앱 확인
-          $allApps = az containerapp list --resource-group $resourceGroup --query "[].name" -o tsv 2>$null
+          # 서비스 설정 확인
+          Write-Host "🔍 Checking all resources in resource group that might be related to monitoring..."
+          $monitoringResources = az resource list --resource-group $resourceGroup --query "[?contains(type, 'Insights') || contains(type, 'monitor') || contains(type, 'Monitor')].{name:name, type:type, id:id}" -o json | ConvertFrom-Json
           
-          if ($allApps) {
-            Write-Host "Found container apps: $allApps"
+          if ($monitoringResources) {
+            Write-Host "✅ Found monitoring related resources:"
+            $monitoringResources | ForEach-Object { Write-Host "- $($_.name) ($($_.type))" }
           } else {
-            Write-Host "No container apps found in resource group $resourceGroup"
+            Write-Host "⚠️ No explicit monitoring resources found in this resource group."
+            Write-Host "  This is expected with Azure Container Apps managed monitoring."
           }
+          
+          # 필요시 로그 스트림 확인
+          Write-Host "📜 Recent logs from container:"
+          az containerapp logs show --name $appName --resource-group $resourceGroup --tail 5
         }
