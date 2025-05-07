@@ -257,22 +257,63 @@ jobs:
         Write-Host "🔍 Waiting for containers to start (30s)..."
         Start-Sleep -Seconds 30
         
-        # 배포된 컨테이너 앱 환경 변수 확인
-        $webAppName = az containerapp list --query "[?contains(name, 'webfrontend')].name" -o tsv
+        # 리소스 그룹 이름 설정
+        $resourceGroup = "rg-$Env:AZURE_ENV_NAME"
         
-        if ($webAppName) {
+        # 모든 컨테이너 앱 나열 및 리소스 그룹 검증
+        Write-Host "📋 Listing all container apps in subscription..."
+        az containerapp list --query "[].{name:name, resourceGroup:resourceGroup}" -o table
+        
+        # webfrontend 컨테이너 앱 찾기
+        $containerDetails = az containerapp list --query "[?contains(name, 'webfrontend')]" | ConvertFrom-Json
+        
+        if ($containerDetails.Count -gt 0) {
+          $webAppName = $containerDetails[0].name
+          $appResourceGroup = $containerDetails[0].resourceGroup
+          
+          Write-Host "✅ Found container app: $webAppName in resource group: $appResourceGroup"
           Write-Host "📝 Checking environment variables for $webAppName"
-          # 환경 변수 목록 확인
-          az containerapp show -n $webAppName --query "properties.template.containers[0].env" -o table
+          
+          # 환경 변수 목록 확인 - 리소스 그룹 포함
+          az containerapp show -n $webAppName --resource-group $appResourceGroup --query "properties.template.containers[0].env" -o table
           
           # Application Insights 연결 문자열이 있는지 확인
-          $hasInsightsString = az containerapp show -n $webAppName --query "properties.template.containers[0].env[?name=='APPLICATIONINSIGHTS_CONNECTION_STRING']" -o tsv
+          $hasInsightsString = az containerapp show -n $webAppName --resource-group $appResourceGroup --query "properties.template.containers[0].env[?name=='APPLICATIONINSIGHTS_CONNECTION_STRING']" -o tsv
           
           if ($hasInsightsString) {
             Write-Host "✅ Application Insights connection string is set in container environment"
           } else {
-            Write-Host "⚠️ Application Insights connection string not found in container environment"
+            # 대체 환경 변수 이름도 확인
+            $hasAltInsightsString = az containerapp show -n $webAppName --resource-group $appResourceGroup --query "properties.template.containers[0].env[?name=='APPLICATIONINSIGHTS_APPINSIGHTSCONNECTIONSTRING']" -o tsv
+            
+            if ($hasAltInsightsString) {
+              Write-Host "✅ Application Insights connection string found with alternative name"
+            } else {
+              Write-Host "⚠️ No Application Insights connection string found in container environment"
+              
+              # 모든 환경 변수 출력하여 디버깅
+              Write-Host "🔍 All environment variables in container:"
+              az containerapp show -n $webAppName --resource-group $appResourceGroup --query "properties.template.containers[0].env[].name" -o table
+            }
+          }
+          
+          # 로그 확인
+          Write-Host "📜 Recent logs from container (if available):"
+          try {
+            az containerapp logs show -n $webAppName --resource-group $appResourceGroup --tail 20
+          } catch {
+            Write-Host "⚠️ Could not retrieve logs: $($_.Exception.Message)"
           }
         } else {
-          Write-Host "⚠️ Unable to find deployed container app"
+          Write-Host "⚠️ Unable to find deployed container app with 'webfrontend' in the name"
+          Write-Host "🔍 Checking all available container apps in resource group $resourceGroup..."
+          
+          # 해당 리소스 그룹의 모든 컨테이너 앱 확인
+          $allApps = az containerapp list --resource-group $resourceGroup --query "[].name" -o tsv 2>$null
+          
+          if ($allApps) {
+            Write-Host "Found container apps: $allApps"
+          } else {
+            Write-Host "No container apps found in resource group $resourceGroup"
+          }
         }
