@@ -80,44 +80,12 @@ public static class Extensions
 
         try
         {
-            // 테스트 환경을 위한 조건부 Application Insights 활성화
-            var enableAzureMonitoring = builder.Configuration.GetValue<bool>("EnableAzureMonitoring", true);
+            var connectionString = builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
             
-            if (enableAzureMonitoring)
+            if (!string.IsNullOrEmpty(connectionString))
             {
-                // 두 가지 가능한 연결 문자열 환경 변수 이름 확인
-                var connectionString = builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"] ?? 
-                                      builder.Configuration["APPLICATIONINSIGHTS_APPINSIGHTSCONNECTIONSTRING"];
-                
-                var hasValidConnectionString = !string.IsNullOrEmpty(connectionString);
-
-                if (hasValidConnectionString)
-                {
-                    builder.Services.AddOpenTelemetry().UseAzureMonitor(options => {
-                        options.ConnectionString = connectionString;
-                    });
-                    Console.WriteLine("✅ Azure Monitor initialized with connection string");
-                }
-                else
-                {
-                    // 빈 연결 문자열로 초기화 시도
-                    try
-                    {
-                        builder.Services.AddOpenTelemetry().UseAzureMonitor(options => {
-                            // 임시 더미 값 설정
-                            options.ConnectionString = "InstrumentationKey=00000000-0000-0000-0000-000000000000";
-                        });
-                        Console.WriteLine("⚠️ Azure Monitor initialized with temporary connection string - waiting for actual value");
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"❌ Azure Monitor initialization skipped: {ex.Message}");
-                    }
-                }
-            }
-            else
-            {
-                Console.WriteLine("📊 Azure Monitor disabled (test environment)");
+                builder.Services.AddOpenTelemetry().UseAzureMonitor();
+                Console.WriteLine("✅ Azure Monitor initialized");
             }
         }
         catch (Exception ex)
