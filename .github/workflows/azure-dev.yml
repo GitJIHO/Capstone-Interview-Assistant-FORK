@@ -128,19 +128,35 @@ jobs:
         azd env set ConnectionStrings__openai "$Env:ConnectionStrings__openai"
         
         # 자동 프로비저닝 활성화 - 이 부분이 Application Insights 자동 생성을 트리거합니다
-        # 아래 설정으로 Aspire.Hosting.Azure.ApplicationInsights가 자동으로 리소스를 생성합니다
+        # GitHub Actions에서는 명시적 설정이 중요합니다
         azd env set EnableAzureMonitoring true
         azd env set IsTestEnvironment false
+        
+        # Application Insights 생성을 위한 명시적 설정 추가
+        azd env set AZURE_ENABLE_APP_INSIGHTS true
+        azd env set AZURE_USE_APPLICATION_INSIGHTS true
+        
+        # 중요: 배포 후 환경 변수 전달을 위한 설정
+        azd env set AZURE_APPSERVICE_LOAD_APPLICATION_INSIGHTS true
         
         # Azure Monitor 추가 설정 (대시보드, 추적, 메트릭, 로깅)
         azd env set AZURE_MONITOR_ENABLE_DASHBOARD true
         azd env set AZURE_MONITOR_ENABLE_TRACING true
         azd env set AZURE_MONITOR_ENABLE_METRICS true
         azd env set AZURE_MONITOR_ENABLE_LOGGING true
+        
+        # 디버깅을 위한 설정 출력
+        Write-Host "🔍 Current azd environment settings:"
+        azd env get-values | Out-String | Write-Host
 
     - name: 🚢 Deploy Application
       if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
       run: azd deploy --no-prompt
+      env:
+        # 배포 과정에서도 환경 변수를 직접 전달
+        EnableAzureMonitoring: "true"
+        AZURE_ENABLE_APP_INSIGHTS: "true"
+        AZURE_USE_APPLICATION_INSIGHTS: "true"
 
     - name: 🔧 Verify Azure Monitor Integration
       if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
@@ -227,3 +243,30 @@ jobs:
         
         # 완료 메시지
         Write-Host "Verification step completed - deployment was successful even if resources are not yet visible"
+
+    - name: 🔍 Debug Container Environment
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
+      shell: pwsh
+      run: |
+        Write-Host "🔍 Waiting for containers to start (30s)..."
+        Start-Sleep -Seconds 30
+        
+        # 배포된 컨테이너 앱 환경 변수 확인
+        $webAppName = az containerapp list --query "[?contains(name, 'webfrontend')].name" -o tsv
+        
+        if ($webAppName) {
+          Write-Host "📝 Checking environment variables for $webAppName"
+          # 환경 변수 목록 확인
+          az containerapp show -n $webAppName --query "properties.template.containers[0].env" -o table
+          
+          # Application Insights 연결 문자열이 있는지 확인
+          $hasInsightsString = az containerapp show -n $webAppName --query "properties.template.containers[0].env[?name=='APPLICATIONINSIGHTS_CONNECTION_STRING']" -o tsv
+          
+          if ($hasInsightsString) {
+            Write-Host "✅ Application Insights connection string is set in container environment"
+          } else {
+            Write-Host "⚠️ Application Insights connection string not found in container environment"
+          }
+        } else {
+          Write-Host "⚠️ Unable to find deployed container app"
+        }

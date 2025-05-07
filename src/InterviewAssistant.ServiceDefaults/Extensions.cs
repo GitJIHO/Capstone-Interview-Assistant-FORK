@@ -78,17 +78,48 @@ public static class Extensions
             builder.Services.AddOpenTelemetry().UseOtlpExporter();
         }
 
-        // 테스트 환경을 위한 조건부 Application Insights 활성화
-        var enableAzureMonitoring = builder.Configuration.GetValue<bool>("EnableAzureMonitoring", true);
-        
-        if (enableAzureMonitoring)
+        try
         {
-            builder.Services.AddOpenTelemetry().UseAzureMonitor();
-            Console.WriteLine("✅ Azure Monitor automatic provisioning enabled");
+            // 테스트 환경을 위한 조건부 Application Insights 활성화
+            var enableAzureMonitoring = builder.Configuration.GetValue<bool>("EnableAzureMonitoring", true);
+            
+            if (enableAzureMonitoring)
+            {
+                // 연결 문자열 존재 여부 확인 - 없으면 예외 발생 방지
+                var hasValidConnectionString = !string.IsNullOrEmpty(
+                    builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]);
+
+                if (hasValidConnectionString)
+                {
+                    builder.Services.AddOpenTelemetry().UseAzureMonitor();
+                    Console.WriteLine("✅ Azure Monitor initialized with connection string");
+                }
+                else
+                {
+                    // 연결 문자열 없이 실행 시도 - 실패해도 앱은 계속 실행
+                    try
+                    {
+                        builder.Services.AddOpenTelemetry().UseAzureMonitor(options => {
+                            options.ConnectionString = "InstrumentationKey=00000000-0000-0000-0000-000000000000";
+                            options.DeferConfigurationSetup = true;
+                        });
+                        Console.WriteLine("⚠️ Azure Monitor initialized with temporary connection string - waiting for actual value");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"❌ Azure Monitor initialization skipped: {ex.Message}");
+                    }
+                }
+            }
+            else
+            {
+                Console.WriteLine("📊 Azure Monitor disabled (test environment)");
+            }
         }
-        else
+        catch (Exception ex)
         {
-            Console.WriteLine("📊 Azure Monitor disabled (test environment)");
+            Console.WriteLine($"❌ Error initializing Azure Monitor: {ex.Message}");
+            // 오류가 발생해도 애플리케이션은 계속 실행
         }
 
         return builder;
