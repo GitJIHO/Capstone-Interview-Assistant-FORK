@@ -136,8 +136,8 @@ jobs:
         azd env set AZURE_ENABLE_APP_INSIGHTS true
         azd env set AZURE_USE_APPLICATION_INSIGHTS true
         
-        # 중요: 배포 후 환경 변수 전달을 위한 설정
-        azd env set AZURE_APPSERVICE_LOAD_APPLICATION_INSIGHTS true
+        # 두 형식의 환경 변수 이름 모두 지원
+        azd env set APPLICATIONINSIGHTS_CONNECTION_STRING_MAP_BOTH_FORMATS true
         
         # Azure Monitor 추가 설정 (대시보드, 추적, 메트릭, 로깅)
         azd env set AZURE_MONITOR_ENABLE_DASHBOARD true
@@ -157,6 +157,7 @@ jobs:
         EnableAzureMonitoring: "true"
         AZURE_ENABLE_APP_INSIGHTS: "true"
         AZURE_USE_APPLICATION_INSIGHTS: "true"
+        APPLICATIONINSIGHTS_CONNECTION_STRING_MAP_BOTH_FORMATS: "true"
 
     - name: 🔧 Verify Azure Monitor Integration
       if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
