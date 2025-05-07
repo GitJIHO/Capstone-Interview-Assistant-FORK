@@ -101,7 +101,6 @@ public static class Extensions
                     {
                         builder.Services.AddOpenTelemetry().UseAzureMonitor(options => {
                             options.ConnectionString = "InstrumentationKey=00000000-0000-0000-0000-000000000000";
-                            options.DeferConfigurationSetup = true;
                         });
                         Console.WriteLine("⚠️ Azure Monitor initialized with temporary connection string - waiting for actual value");
                     }
