@@ -125,17 +125,9 @@ jobs:
       shell: pwsh
       run: |
         azd env set ConnectionStrings__openai "$Env:ConnectionStrings__openai"
-        
-        # Application Insights 자동 활성화 설정
-        # azd env set AZURE_ENABLE_APP_INSIGHTS true
-        # azd env set AZURE_USE_APPLICATION_INSIGHTS true
-        
-        # 디버깅을 위한 설정 출력
-        Write-Host "🔍 Current azd environment settings:"
-        azd env get-values | Out-String | Write-Host
     
     - name: 🚢 Deploy Application
       if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
       run: azd up --no-prompt
-      env:
-        EnableAzureMonitoring: "true"
+      # env:
+      #   EnableAzureMonitoring: "true"
