@@ -127,8 +127,8 @@ jobs:
         azd env set ConnectionStrings__openai "$Env:ConnectionStrings__openai"
         
         # Application Insights 자동 활성화 설정
-        azd env set AZURE_ENABLE_APP_INSIGHTS true
-        azd env set AZURE_USE_APPLICATION_INSIGHTS true
+        # azd env set AZURE_ENABLE_APP_INSIGHTS true
+        # azd env set AZURE_USE_APPLICATION_INSIGHTS true
         
         # 디버깅을 위한 설정 출력
         Write-Host "🔍 Current azd environment settings:"
@@ -139,5 +139,3 @@ jobs:
       run: azd deploy --no-prompt
       env:
         EnableAzureMonitoring: "true"
-        AZURE_ENABLE_APP_INSIGHTS: "true"
-        AZURE_USE_APPLICATION_INSIGHTS: "true"
