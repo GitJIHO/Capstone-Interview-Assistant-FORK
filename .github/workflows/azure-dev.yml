@@ -413,133 +413,59 @@ jobs:
                         "Send_an_email": {
                             "inputs": {
                                 "body": {
-                                    "Body": "애플리케이션이 성공적으로 배포되었습니다.\n\n애플리케이션: @{triggerBody()?[\'appName\']}\n리비전: @{triggerBody()?[\'revision\']}\n배포 시간: @{utcNow()}",on\']} \n🕒 *배포 시간*: @{utcNow()} \n📝 *상태*: @{triggerBody()[\'status\']} \n\n@{triggerBody()[\'details\']}"
+                                    "Body": "애플리케이션이 성공적으로 배포되었습니다.\n\n애플리케이션: @{triggerBody()?[\'appName\']}\n리비전: @{triggerBody()?[\'revision\']}\n배포 시간: @{utcNow()}",
                                     "Subject": "배포 알림: @{triggerBody()?[\'appName\']}",
                                     "To": "team@example.com"
-                                },  "Content-Type": "application/json"
+                                },
                                 "host": {
                                     "connection": {
-                                        "name": "@parameters(\'$connections\')[\'office365\'][\'connectionId\']"FDHSzMxVK"
+                                        "name": "@parameters(\'$connections\')[\'office365\'][\'connectionId\']"
                                     }
-                                },ter": {},
+                                },
                                 "method": "post",
                                 "path": "/v2/Mail"
                             },
                             "type": "ApiConnection"
-                        }uts": {},
-                    },arameters": {},
-                    "contentVersion": "1.0.0.0",
-                    "outputs": {},{
-                    "parameters": {": {
-                        "$connections": { {
-                            "defaultValue": {},": {
-                            "type": "Object"Name": {
-                        }                   "type": "string"
-                    },                  },
-                    "triggers": {       "revision": {
-                        "manual": {         "type": "string"
-                            "inputs": { },
-                                "schema": {atus": {
-                                    "properties": { "string"
-                                        "appName": {
-                                            "type": "string"
-                                        },  "type": "string"
-                                        "revision": {
-                                            "type": "string"
-                                        }": "object"
+                        }
+                    },
+                    "parameters": {
+                        "$connections": {
+                            "defaultValue": {},
+                            "type": "Object"
+                        }
+                    },
+                    "triggers": {
+                        "manual": {
+                            "inputs": {},
+                            "schema": {
+                                "properties": {
+                                    "appName": {
+                                        "type": "string"
                                     },
-                                    "type": "object"
-                                }": "Http",
-                            },ype": "Request"
+                                    "revision": {
+                                        "type": "string"
+                                    },
+                                    "status": {
+                                        "type": "string"
+                                    },
+                                    "details": {
+                                        "type": "string"
+                                    }
+                                },
+                                "type": "object"
+                            },
                             "kind": "Http",
                             "type": "Request"
                         }
                     }
                 }
-            }'Logic App 배포
-            Write-Host "🔧 새 Logic App 생성 중..."
-            # Logic App 배포low create --resource-group $rgName --name $logicAppName --definition "$workflowDefinition"
-            Write-Host "🔧 새 Logic App 생성 중..."p 배포 완료"
-            az logic workflow create --resource-group $rgName --name $logicAppName --definition "$workflowDefinition"
-            Write-Host "✅ Logic App 배포 완료"재합니다: $logicAppName"
-        } else {
-            Write-Host "ℹ️ Logic App이 이미 존재합니다: $logicAppName"
-        }   $workflowDefinition = '{
-                "definition": {
-        # Logic App 엔드포인트는 실제 환경에서 저장하고 사용해야 함.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
-        # 여기서는 시연 목적으로 표시만 함": {
-        Write-Host "✅ 자동화된 알림 시스템 구성 완료" {
-                            "inputs": {
-    - name: 📢 Send Deployment Notification
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main' && always()]} \n\n✅ *애플리케이션*: @{triggerBody()[\'appName\']} \n📦 *리비전*: @{triggerBody()[\'revision\']} \n🕒 *배포 시간*: @{utcNow()} \n📝 *상태*: @{triggerBody()[\'status\']} \n\n@{triggerBody()[\'details\']}"
-      shell: pwsh               },
-      run: |                    "headers": {
-        $deploymentSuccess = $env:TRAFFIC_SHIFT_SUCCESSplication/json"
-        $appName = $env:APP_NAME},
-        $newRevision = $env:NEW_REVISION: "POST",
-                                "uri": "https://hooks.slack.com/services/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"
-        # Slack 알림 준비
-        if ($deploymentSuccess -eq "true") {
-          $status = "성공"                  "type": "Http"
-          $details = "Blue/Green 배포가 성공적으로 완료되었습니다."
-          Write-Host "✅ 배포 성공! 애플리케이션 $appName의 새 리비전 $newRevision이 성공적으로 배포되었습니다."
-        } else {
-          $status = "실패"
-          $details = "배포 중 오류가 발생했거나 롤백되었습니다. GitHub Actions 로그를 확인해주세요."},
-          Write-Host "❌ 배포 실패 또는 롤백됨. 자세한 로그를 확인해주세요."
-        }
-        "inputs": {
-        # Slack 웹훅으로 직접 알림 전송                      "schema": {
-        $slackPayload = @{
-          text = "🚀 *배포 알림*: $appName `n`n✅ *애플리케이션*: $appName `n📦 *리비전*: $newRevision `n🕒 *배포 시간*: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') `n📝 *상태*: $status `n`n$details"
-        } | ConvertTo-Json                                  "type": "string"
-        
-        try {                              "revision": {
-          $slackWebhookUrl = "https://hooks.slack.com/services/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"                            "type": "string"
-          Invoke-RestMethod -Uri $slackWebhookUrl -Method Post -Body $slackPayload -ContentType "application/json"
-          Write-Host "✅ Slack 알림이 성공적으로 전송되었습니다."                              "status": {
-        } catch {                       "type": "string"
-          Write-Host "⚠️ Slack 알림 전송 중 오류가 발생했습니다: $_"            },
-        }
-              "type": "string"
-        # Logic App을 통한 알림 전송 (백업 메서드)     }
-        if ($env:LOGIC_APP_TRIGGER_URL) {
-          try {"object"
-            $logicAppPayload = @{    }
-              appName = $appName                   },
-              revision = $newRevision                            "kind": "Http",
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        Write-Host "📊 배포 메트릭이 Azure Monitor에 기록되었습니다."                } | ConvertTo-Json          details = $details          event = $eventType          revision = $newRevision          applicationName = $appName          timestamp = (Get-Date).ToUniversalTime().ToString("o")        $customEvent = @{        $eventType = if ($deploymentSuccess -eq "true") { "deployment_success" } else { "deployment_failure" }        # Azure Monitor에 이벤트 기록                }          }            Write-Host "⚠️ Logic App 알림 전송 중 오류가 발생했습니다: $_"          } catch {            Write-Host "✅ Logic App을 통한 알림이 성공적으로 전송되었습니다."            Invoke-RestMethod -Uri $env:LOGIC_APP_TRIGGER_URL -Method Post -Body $logicAppPayload -ContentType "application/json"                        } | ConvertTo-Json              details = $details              status = $status                            "type": "Request"
-                        }
-                    }
-                }
             }'
             
-            # Logic App 업데이트
-            az logic workflow create --resource-group $rgName --name $logicAppName --definition "$workflowDefinition" --update
-            Write-Host "✅ Logic App을 Slack 알림으로 업데이트 완료"
+            Write-Host "🔧 새 Logic App 생성 중..."
+            az logic workflow create --resource-group $rgName --name $logicAppName --definition "$workflowDefinition"
+            Write-Host "✅ Logic App 배포 완료"
+        } else {
+            Write-Host "ℹ️ Logic App이 이미 존재합니다: $logicAppName"
         }
         
         # Logic App 트리거 URL 가져오기
