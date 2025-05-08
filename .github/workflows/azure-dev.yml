@@ -271,11 +271,18 @@ jobs:
           if ([string]::IsNullOrEmpty($existingActionGroup)) {
             # 신규 생성
             Write-Host "새 액션 그룹 생성"
-            az monitor action-group create --resource-group $rgName --name $actionGroupName --short-name "SlackAlrt" --webhook-properties serviceUri=$slackWebhookUrl --webhook-name SlackWebhook
+            az monitor action-group create `
+              --resource-group $rgName `
+              --name $actionGroupName `
+              --short-name "Slack" `
+              --action webhook SlackWebhook $slackWebhookUrl
           } else {
             # 기존 그룹 업데이트
             Write-Host "기존 액션 그룹 업데이트"
-            az monitor action-group update --resource-group $rgName --name $actionGroupName --webhook-properties serviceUri=$slackWebhookUrl --webhook-name SlackWebhook
+            az monitor action-group update `
+              --resource-group $rgName `
+              --name $actionGroupName `
+              --add webhookReceivers name=SlackWebhook serviceUri=$slackWebhookUrl
           }
           
           $actionGroupId = az monitor action-group show --resource-group $rgName --name $actionGroupName --query id -o tsv
@@ -286,7 +293,7 @@ jobs:
             --name $alertName `
             --resource-group $rgName `
             --scopes $resourceId `
-            --condition "avg CPU > 75 where TimeGrain = PT1M" `
+            --condition "avg Percentage CPU > 75" `
             --window-size 5m `
             --evaluation-frequency 1m `
             --description "CPU 사용량 75% 초과 알림" `
@@ -298,7 +305,7 @@ jobs:
             --name $alertName `
             --resource-group $rgName `
             --scopes $resourceId `
-            --condition "avg MemoryWorkingSet > 80 where TimeGrain = PT1M" `
+            --condition "avg Memory Working Set > 80" `
             --window-size 5m `
             --evaluation-frequency 1m `
             --description "메모리 사용량 80% 초과 알림" `
@@ -310,67 +317,13 @@ jobs:
             --name $alertName `
             --resource-group $rgName `
             --scopes $resourceId `
-            --condition "total HttpResponseErrors > 10 where TimeGrain = PT1M" `
+            --condition "total Http Response Errors > 10" `
             --window-size 5m `
             --evaluation-frequency 1m `
             --description "HTTP 오류 응답 비율 알림" `
             --action $actionGroupId
           
           Write-Host "Azure Monitor 알림이 Slack 알림과 함께 구성되었습니다."
-          
-          # 한국 시간대로 설정
-          try {
-            $koreaTimeZone = [System.TimeZoneInfo]::FindSystemTimeZoneById("Asia/Seoul")
-          } catch {
-            try {
-              $koreaTimeZone = [System.TimeZoneInfo]::FindSystemTimeZoneById("Korea Standard Time")
-            } catch {
-              $koreaTimeZone = $null
-            }
-          }
-          
-          if ($koreaTimeZone) {
-            $utcNow = [System.DateTime]::UtcNow
-            $koreaTime = [System.TimeZoneInfo]::ConvertTimeFromUtc($utcNow, $koreaTimeZone)
-            $timestamp = [Math]::Floor([decimal]((Get-Date $koreaTime -UFormat "%s")))
-          } else {
-            $timestamp = [Math]::Floor([decimal](Get-Date -UFormat "%s"))
-          }
-          
-          # Slack으로 알림 설정 완료 메시지 전송
-          $payload = @{
-            attachments = @(
-              @{
-                fallback = "모니터링 알림 설정 완료"
-                color = "#3AA3E3"
-                pretext = "📊 *Azure 모니터링 알림 설정 완료*"
-                title = "$appName 애플리케이션의 모니터링 알림이 설정되었습니다"
-                text = "다음 이슈 발생 시 이 채널로 자동 알림이 전송됩니다:\n• CPU 사용량 75% 초과\n• 메모리 사용량 80% 초과\n• HTTP 오류 응답 증가"
-                fields = @(
-                  @{
-                    title = "앱"
-                    value = $appName
-                    short = $true
-                  },
-                  @{
-                    title = "리소스 그룹"
-                    value = $rgName
-                    short = $true
-                  }
-                )
-                footer = "Azure Monitor"
-                footer_icon = "https://azure.microsoft.com/svghandler/monitor/?width=300&height=300"
-                ts = $timestamp
-              }
-            )
-          } | ConvertTo-Json -Depth 4
-          
-          try {
-            Invoke-RestMethod -Uri $slackWebhookUrl -Method Post -Body $payload -ContentType "application/json"
-            Write-Host "✅ 모니터링 알림 설정 완료 메시지를 Slack으로 전송했습니다."
-          } catch {
-            Write-Host "⚠️ Slack 알림 전송 중 오류 발생: $_"
-          }
           
         } catch {
           Write-Host "⚠️ 오류 발생: $_"
