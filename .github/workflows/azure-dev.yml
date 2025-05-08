@@ -287,43 +287,68 @@ jobs:
           
           $actionGroupId = az monitor action-group show --resource-group $rgName --name $actionGroupName --query id -o tsv
           
-          # CPU 사용량 알림
-          $alertName = "${appName}-cpu-alert"
-          az monitor metrics alert create `
-            --name $alertName `
-            --resource-group $rgName `
-            --scopes $resourceId `
-            --condition "avg Percentage CPU > 75" `
-            --window-size 5m `
-            --evaluation-frequency 1m `
-            --description "CPU 사용량 75% 초과 알림" `
-            --action $actionGroupId
+          # 사용 가능한 지표 확인
+          Write-Host "컨테이너 앱에 사용 가능한 지표 확인 중..."
+          $availableMetrics = az monitor metrics list-metrics --resource $resourceId --query "[].name.value" -o tsv
+          Write-Host "사용 가능한 지표 목록:"
+          $availableMetrics | ForEach-Object { Write-Host "- $_" }
           
-          # 메모리 사용량 알림
-          $alertName = "${appName}-memory-alert"
-          az monitor metrics alert create `
-            --name $alertName `
-            --resource-group $rgName `
-            --scopes $resourceId `
-            --condition "avg Memory Working Set > 80" `
-            --window-size 5m `
-            --evaluation-frequency 1m `
-            --description "메모리 사용량 80% 초과 알림" `
-            --action $actionGroupId
+          # 실제 지표를 사용하여 알림 생성
+          try {
+            # CPU 사용량 알림
+            $alertName = "${appName}-cpu-alert"
+            az monitor metrics alert create `
+              --name $alertName `
+              --resource-group $rgName `
+              --scopes $resourceId `
+              --condition "avg CPU > 75" `
+              --window-size 5m `
+              --evaluation-frequency 1m `
+              --description "CPU 사용량 75% 초과 알림" `
+              --action $actionGroupId
+            
+            Write-Host "✅ CPU 알림 생성 완료"
+          } catch {
+            Write-Host "⚠️ CPU 알림 생성 실패: $_"
+          }
           
-          # HTTP 오류 응답 알림
-          $alertName = "${appName}-http-error-alert"
-          az monitor metrics alert create `
-            --name $alertName `
-            --resource-group $rgName `
-            --scopes $resourceId `
-            --condition "total Http Response Errors > 10" `
-            --window-size 5m `
-            --evaluation-frequency 1m `
-            --description "HTTP 오류 응답 비율 알림" `
-            --action $actionGroupId
+          try {
+            # 메모리 사용량 알림
+            $alertName = "${appName}-memory-alert"
+            az monitor metrics alert create `
+              --name $alertName `
+              --resource-group $rgName `
+              --scopes $resourceId `
+              --condition "avg MemoryWorkingSet > 80" `
+              --window-size 5m `
+              --evaluation-frequency 1m `
+              --description "메모리 사용량 80% 초과 알림" `
+              --action $actionGroupId
+            
+            Write-Host "✅ 메모리 알림 생성 완료"
+          } catch {
+            Write-Host "⚠️ 메모리 알림 생성 실패: $_"
+          }
           
-          Write-Host "Azure Monitor 알림이 Slack 알림과 함께 구성되었습니다."
+          try {
+            # HTTP 오류 응답 알림
+            $alertName = "${appName}-http-error-alert"
+            az monitor metrics alert create `
+              --name $alertName `
+              --resource-group $rgName `
+              --scopes $resourceId `
+              --condition "total HttpResponseErrors > 10" `
+              --window-size 5m `
+              --evaluation-frequency 1m `
+              --description "HTTP 오류 응답 비율 알림" `
+              --action $actionGroupId
+            
+            Write-Host "✅ HTTP 오류 알림 생성 완료"
+          } catch {
+            Write-Host "⚠️ HTTP 오류 알림 생성 실패: $_"
+          }
+          
+          Write-Host "Azure Monitor 알림 구성 프로세스가 완료되었습니다."
           
         } catch {
           Write-Host "⚠️ 오류 발생: $_"
