@@ -32,6 +32,7 @@ module resources 'resources.bicep' = {
   }
 }
 
+/* 주석 처리: AppHost/Program.cs에서 builder.AddAzureApplicationInsights()로 이미 처리되고 있어 중복됩니다.
 module applicationinsights 'applicationinsights/applicationinsights.module.bicep' = {
   name: 'applicationinsights'
   scope: rg
@@ -46,6 +47,7 @@ module applicationinsights 'applicationinsights/applicationinsights.module.bicep
     })
   }
 }
+*/
 
 output MANAGED_IDENTITY_CLIENT_ID string = resources.outputs.MANAGED_IDENTITY_CLIENT_ID
 output MANAGED_IDENTITY_NAME string = resources.outputs.MANAGED_IDENTITY_NAME
@@ -56,4 +58,7 @@ output AZURE_CONTAINER_REGISTRY_NAME string = resources.outputs.AZURE_CONTAINER_
 output AZURE_CONTAINER_APPS_ENVIRONMENT_NAME string = resources.outputs.AZURE_CONTAINER_APPS_ENVIRONMENT_NAME
 output AZURE_CONTAINER_APPS_ENVIRONMENT_ID string = resources.outputs.AZURE_CONTAINER_APPS_ENVIRONMENT_ID
 output AZURE_CONTAINER_APPS_ENVIRONMENT_DEFAULT_DOMAIN string = resources.outputs.AZURE_CONTAINER_APPS_ENVIRONMENT_DEFAULT_DOMAIN
+
+/* 주석 처리: 위의 applicationinsights 모듈이 주석 처리되어 이 출력도 사용할 수 없습니다.
 output APPLICATIONINSIGHTS_CONNECTION_STRING string = applicationinsights.outputs.appInsightsConnectionString
+*/

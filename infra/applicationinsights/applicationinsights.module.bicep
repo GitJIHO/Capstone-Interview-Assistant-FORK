@@ -1,3 +1,7 @@
+/* 주석 처리: 전체 파일
+이 파일은 AppHost/Program.cs의 builder.AddAzureApplicationInsights() 호출로 대체됩니다.
+Aspire는 자동으로 Application Insights 리소스를 생성하고 관리하므로 이 모듈은 불필요합니다.
+
 @description('The location for the resource(s) to be deployed.')
 param location string = resourceGroup().location
 
@@ -33,3 +37,4 @@ output appInsightsConnectionString string = applicationinsights.properties.Conne
 output appInsightsInstrumentationKey string = applicationinsights.properties.InstrumentationKey
 output appInsightsName string = applicationinsights.name
 output appInsightsId string = applicationinsights.id
+*/
