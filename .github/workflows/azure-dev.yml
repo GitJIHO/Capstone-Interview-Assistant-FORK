@@ -114,40 +114,27 @@ jobs:
           --federated-credential-provider "github" `
           --tenant-id "$Env:AZURE_TENANT_ID"
 
-    - name: 🏗️ Provision Infrastructure
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
-      run: azd provision --no-prompt
-      env:
-        AZD_INITIAL_ENVIRONMENT_CONFIG: ${{ secrets.AZD_INITIAL_ENVIRONMENT_CONFIG }}
-
-    - name: 🔧 Set Azure Environment Variables
+    - name: 🔧 Create and Configure Azure Environment
       if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
       shell: pwsh
       run: |
+        # 환경이 없으면 새로 생성
+        Write-Host "Creating Azure Developer CLI environment if needed..."
+        azd env new $Env:AZURE_ENV_NAME --subscription $Env:AZURE_SUBSCRIPTION_ID --location $Env:AZURE_LOCATION --no-prompt --exists-ok
+        
+        # OpenAI 연결 문자열 설정
         azd env set ConnectionStrings__openai "$Env:ConnectionStrings__openai"
         
-        # 자동 프로비저닝 활성화
+        # 단순화된 환경 변수 - EnableAzureMonitoring만 설정
         azd env set EnableAzureMonitoring true
-        azd env set IsTestEnvironment false
-        
-        # Application Insights 자동 활성화 설정
-        azd env set AZURE_ENABLE_APP_INSIGHTS true
-        azd env set AZURE_USE_APPLICATION_INSIGHTS true
-        
-        # Azure Monitor 추가 설정
-        azd env set AZURE_MONITOR_ENABLE_DASHBOARD true
-        azd env set AZURE_MONITOR_ENABLE_TRACING true
-        azd env set AZURE_MONITOR_ENABLE_METRICS true
-        azd env set AZURE_MONITOR_ENABLE_LOGGING true
         
         # 디버깅을 위한 설정 출력
         Write-Host "🔍 Current azd environment settings:"
         azd env get-values | Out-String | Write-Host
-    
-    - name: 🚢 Deploy Application
+
+    - name: 🚢 Provision and Deploy (One Step)
       if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
-      run: azd deploy --no-prompt
+      run: azd up --no-prompt
       env:
+        AZD_INITIAL_ENVIRONMENT_CONFIG: ${{ secrets.AZD_INITIAL_ENVIRONMENT_CONFIG }}
         EnableAzureMonitoring: "true"
-        AZURE_ENABLE_APP_INSIGHTS: "true"
-        AZURE_USE_APPLICATION_INSIGHTS: "true"
