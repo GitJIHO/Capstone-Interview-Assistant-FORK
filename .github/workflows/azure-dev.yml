@@ -114,12 +114,6 @@ jobs:
           --federated-credential-provider "github" `
           --tenant-id "$Env:AZURE_TENANT_ID"
 
-    - name: 🏗️ Provision Infrastructure
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
-      run: azd provision --no-prompt
-      env:
-        AZD_INITIAL_ENVIRONMENT_CONFIG: ${{ secrets.AZD_INITIAL_ENVIRONMENT_CONFIG }}
-
     - name: 🔧 Set Azure Environment Variables
       if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
       shell: pwsh
@@ -135,8 +129,9 @@ jobs:
         Write-Host "🔍 Environment settings before deployment:"
         azd env get-values | Out-String | Write-Host
 
-    - name: 🚢 Deploy Application
+    - name: 🚢 Provision and Deploy (One Command)
       if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
-      run: azd deploy --no-prompt
+      run: azd up --no-prompt
       env:
+        AZD_INITIAL_ENVIRONMENT_CONFIG: ${{ secrets.AZD_INITIAL_ENVIRONMENT_CONFIG }}
         EnableAzureMonitoring: "true"
