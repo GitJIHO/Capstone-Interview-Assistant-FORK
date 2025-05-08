@@ -126,392 +126,161 @@ jobs:
       run: |
         azd env set ConnectionStrings__openai "$Env:ConnectionStrings__openai"
     
-    - name: 🔵 Deploy New Revision (Blue)
+    - name: 🚢 Deploy Application
+      id: deploy
       if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
-      shell: pwsh
-      run: |
-        Write-Host "🚀 배포 시작: 새 리비전(Blue) 배포..."
-        
-        # azd를 통해 앱 이름과 리소스 그룹 정보 가져오기
-        $env = azd env get-values
-        $rgName = ($env | Where-Object { $_ -match "AZURE_RESOURCE_GROUP" }).Split("=")[1]
-        
-        # Azure Container App 리소스 정보 가져오기
-        $apps = az containerapp list --resource-group $rgName --query "[].name" -o tsv
-        $appName = $apps.Split()[0]  # 애플리케이션 이름 추출
-        
-        # 새 리비전 생성 (트래픽 0%로 시작)
-        $revisionSuffix = "rev-$(Get-Date -Format 'yyyyMMddHHmmss')"
-        Write-Host "📌 새 리비전 생성 중: $revisionSuffix"
-        
-        # 애플리케이션 배포 (0% 트래픽 할당)
-        azd deploy --no-prompt
-        
-        # 새 리비전에 태그 추가 및 트래픽 0%로 설정
-        az containerapp revision set-traffic --name $appName --resource-group $rgName --revision-weight "$revisionSuffix=0"
-        
-        # 새 리비전 이름 저장
-        echo "NEW_REVISION=$revisionSuffix" >> $GITHUB_ENV
-        echo "APP_NAME=$appName" >> $GITHUB_ENV
-        echo "RESOURCE_GROUP=$rgName" >> $GITHUB_ENV
+      run: azd up --no-prompt
       env:
         EnableAzureMonitoring: "true"
-
-    - name: 🩺 Health Check for New Revision
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
+    
+    - name: 🔔 Send Deployment Status to Slack
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main' && always()
       shell: pwsh
       run: |
-        Write-Host "🩺 새 리비전 상태 확인 중..."
-        $appName = $env:APP_NAME
-        $rgName = $env:RESOURCE_GROUP
-        $revision = $env:NEW_REVISION
+        $slackWebhookUrl = "https://hooks.slack.com/services/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"
+        $deploySucess = ${{ steps.deploy.outcome == 'success' }}
         
-        # 엔드포인트 URL 가져오기
-        $endpoint = az containerapp show --name $appName --resource-group $rgName --query "properties.configuration.ingress.fqdn" -o tsv
-        $healthEndpoint = "https://$endpoint/health"  # 헬스 엔드포인트 설정 (프로젝트에 맞게 조정 필요)
+        $appName = "$Env:AZURE_ENV_NAME"
+        $now = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
         
-        # 상태 확인 시도
-        $maxAttempts = 5
-        $attemptCount = 0
-        $isHealthy = $false
-        
-        while ($attemptCount -lt $maxAttempts) {
-          try {
-            $attemptCount++
-            Write-Host "상태 확인 시도 $attemptCount/$maxAttempts..."
-            $response = Invoke-WebRequest -Uri $healthEndpoint -UseBasicParsing -TimeoutSec 30
-            if ($response.StatusCode -eq 200) {
-              Write-Host "✅ 상태 확인 성공: 새 리비전이 정상적으로 작동합니다."
-              $isHealthy = $true
-              break
-            }
-          }
-          catch {
-            Write-Host "⚠️ 상태 확인 실패. 30초 후 재시도..."
-            Start-Sleep -Seconds 30
-          }
-        }
-        
-        if (-not $isHealthy) {
-          Write-Host "❌ 새 리비전 상태 확인 실패. 배포를 중단합니다."
-          exit 1
-        }
-        
-        echo "HEALTH_CHECK_PASSED=true" >> $GITHUB_ENV
-
-    - name: 🔄 Gradual Traffic Shift
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true' && env.HEALTH_CHECK_PASSED == 'true'
-      shell: pwsh
-      run: |
-        Write-Host "🔄 트래픽 점진적 전환 시작..."
-        $appName = $env:APP_NAME
-        $rgName = $env:RESOURCE_GROUP
-        
-        # 현재 활성 리비전 찾기 (Green)
-        $activeRevision = az containerapp revision list --name $appName --resource-group $rgName --query "[?properties.active && properties.trafficWeight > '0'].name" -o tsv
-        $newRevision = $env:NEW_REVISION
-        
-        Write-Host "📊 현재 활성 리비전: $activeRevision"
-        Write-Host "📊 새 리비전: $newRevision"
-        
-        # 트래픽 점진적 전환 (20% -> 50% -> 100%)
-        $trafficSteps = @(20, 50, 100)
-        $success = $true
-        
-        foreach ($percent in $trafficSteps) {
-          $remainingPercent = 100 - $percent
-          
-          Write-Host "📊 트래픽 전환: $percent% 새 리비전, $remainingPercent% 이전 리비전"
-          
-          if ($activeRevision) {
-            az containerapp revision set-traffic --name $appName --resource-group $rgName --revision-weight "$newRevision=$percent" "$activeRevision=$remainingPercent"
-          } else {
-            az containerapp revision set-traffic --name $appName --resource-group $rgName --revision-weight "$newRevision=$percent"
-          }
-          
-          # 5분 대기하며 앱 상태 모니터링
-          Write-Host "⏳ $percent% 전환 후 5분간 모니터링..."
-          Start-Sleep -Seconds 300
-          
-          # 간단한 상태 확인 (실제 구현에서는 보다 정교한 모니터링 필요)
-          $endpoint = az containerapp show --name $appName --resource-group $rgName --query "properties.configuration.ingress.fqdn" -o tsv
-          $healthEndpoint = "https://$endpoint/health"
-          
-          try {
-            $response = Invoke-WebRequest -Uri $healthEndpoint -UseBasicParsing -TimeoutSec 30
-            if ($response.StatusCode -ne 200) {
-              $success = $false
-              break
-            }
-          }
-          catch {
-            Write-Host "❌ 상태 확인 실패. 롤백이 필요합니다."
-            $success = $false
-            break
-          }
-        }
-        
-        if ($success) {
-          Write-Host "✅ 트래픽 전환 완료: 새 리비전으로 100% 전환됨"
-          echo "TRAFFIC_SHIFT_SUCCESS=true" >> $GITHUB_ENV
-          echo "ACTIVE_REVISION=$activeRevision" >> $GITHUB_ENV
+        if ($deploySucess) {
+          $status = "✅ 성공"
+          $color = "#36a64f"  # 초록색
+          $message = "Azure Container App이 성공적으로 배포되었습니다."
         } else {
-          Write-Host "❌ 트래픽 전환 중 문제 발생. 롤백합니다."
-          # 롤백: 트래픽을 기존 활성 리비전으로 복원
-          if ($activeRevision) {
-            az containerapp revision set-traffic --name $appName --resource-group $rgName --revision-weight "$activeRevision=100"
-          }
-          exit 1
+          $status = "❌ 실패"
+          $color = "#ff0000"  # 빨간색
+          $message = "Azure Container App 배포 중 오류가 발생했습니다."
         }
-
-    - name: 🧹 Cleanup Old Revisions
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true' && env.TRAFFIC_SHIFT_SUCCESS == 'true'
-      shell: pwsh
-      run: |
-        Write-Host "🧹 불필요한 이전 리비전 정리 중..."
-        $appName = $env:APP_NAME
-        $rgName = $env:RESOURCE_GROUP
-        $activeRevision = $env:ACTIVE_REVISION
         
-        # 현재 비활성 상태이고 트래픽이 없는 이전 리비전들 조회 (최신 2개 유지)
-        $revisionsToKeep = 2
-        $inactiveRevisions = az containerapp revision list --name $appName --resource-group $rgName --query "[?properties.trafficWeight=='0'].name" -o tsv
-        
-        if ($inactiveRevisions) {
-          $revisions = $inactiveRevisions.Split("`n") | Where-Object { $_.Trim() -ne "" }
-          
-          # 가장 최근 리비전 2개를 제외하고 삭제
-          if ($revisions.Count -gt $revisionsToKeep) {
-            $revisionsToDelete = $revisions | Select-Object -SkipLast $revisionsToKeep
-            
-            foreach ($rev in $revisionsToDelete) {
-              Write-Host "🗑️ 리비전 삭제 중: $rev"
-              az containerapp revision deactivate --name $appName --resource-group $rgName --revision $rev
+        $payload = @{
+          attachments = @(
+            @{
+              fallback = "배포 알림: $status"
+              color = $color
+              pretext = "📢 *Azure 배포 알림*"
+              title = "배포 상태: $status"
+              text = $message
+              fields = @(
+                @{
+                  title = "앱"
+                  value = $appName
+                  short = $true
+                },
+                @{
+                  title = "환경"
+                  value = "$Env:AZURE_LOCATION"
+                  short = $true
+                },
+                @{
+                  title = "배포 시간"
+                  value = $now
+                  short = $true
+                },
+                @{
+                  title = "배포자"
+                  value = "${{ github.actor }}"
+                  short = $true
+                }
+              )
+              footer = "GitHub Actions"
+              footer_icon = "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"
+              ts = [Math]::Floor([decimal](Get-Date -UFormat "%s"))
             }
-            
-            Write-Host "✅ 이전 리비전 정리 완료"
-          } else {
-            Write-Host "ℹ️ 정리할 이전 리비전이 없습니다."
-          }
-        }
+          )
+        } | ConvertTo-Json -Depth 4
+        
+        Invoke-RestMethod -Uri $slackWebhookUrl -Method Post -Body $payload -ContentType "application/json"
 
-    - name: 📊 Set Up Azure Monitor Alerts
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true' && env.TRAFFIC_SHIFT_SUCCESS == 'true'
+    - name: 🔧 Configure Azure Monitor Alerts with Slack
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.deploy.outcome == 'success'
       shell: pwsh
       run: |
-        Write-Host "📊 Azure Monitor 알림 설정 중..."
-        $appName = $env:APP_NAME
-        $rgName = $env:RESOURCE_GROUP
+        Write-Host "Azure Monitor 알림 구성 중..."
         
-        # 리소스 ID 가져오기
+        # 필요한 변수 설정
+        $rgName = azd env get-values | Where-Object { $_ -like "*AZURE_RESOURCE_GROUP*" } | ForEach-Object { $_.Split("=")[1] }
+        $appName = azd env get-values | Where-Object { $_ -like "*AZURE_CONTAINER_APP_NAME*" } | ForEach-Object { $_.Split("=")[1] }
+        
+        if (-not $appName) {
+          # Container App 이름을 직접 조회
+          $apps = az containerapp list --resource-group $rgName --query "[].name" -o tsv
+          $appName = $apps.Split()[0]
+        }
+        
+        Write-Host "Container App: $appName in $rgName"
         $resourceId = az containerapp show --name $appName --resource-group $rgName --query id -o tsv
+        $slackWebhookUrl = "https://hooks.slack.com/services/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"
         
-        # 기본 알림 설정 - CPU 사용량 경고
+        # 액션 그룹 생성 (Slack 웹훅)
+        $actionGroupName = "SlackNotifications"
+        az monitor action-group create --resource-group $rgName --name $actionGroupName --short-name "SlackAlert" --webhook-resource-id $slackWebhookUrl
+        $actionGroupId = az monitor action-group show --resource-group $rgName --name $actionGroupName --query id -o tsv
+        
+        # CPU 사용량 알림
         $alertName = "${appName}-cpu-alert"
         az monitor metrics alert create `
           --name $alertName `
           --resource-group $rgName `
           --scopes $resourceId `
-          --condition "avg CPU > 80" `
+          --condition "avg CPU > 75 where TimeGrain = PT1M" `
           --window-size 5m `
           --evaluation-frequency 1m `
-          --description "컨테이너 앱 CPU 사용량 80% 초과 알림"
+          --description "CPU 사용량 75% 초과 알림" `
+          --action $actionGroupId
         
-        # HTTP 4xx, 5xx 오류 알림
+        # 메모리 사용량 알림
+        $alertName = "${appName}-memory-alert"
+        az monitor metrics alert create `
+          --name $alertName `
+          --resource-group $rgName `
+          --scopes $resourceId `
+          --condition "avg MemoryWorkingSet > 80 where TimeGrain = PT1M" `
+          --window-size 5m `
+          --evaluation-frequency 1m `
+          --description "메모리 사용량 80% 초과 알림" `
+          --action $actionGroupId
+          
+        # HTTP 오류 응답 알림
         $alertName = "${appName}-http-error-alert"
         az monitor metrics alert create `
           --name $alertName `
           --resource-group $rgName `
           --scopes $resourceId `
-          --condition "avg HttpResponseErrors > 10" `
+          --condition "total HttpResponseErrors > 10 where TimeGrain = PT1M" `
           --window-size 5m `
           --evaluation-frequency 1m `
-          --description "HTTP 오류 응답 비율 알림"
+          --description "HTTP 오류 응답 비율 알림" `
+          --action $actionGroupId
         
-        Write-Host "✅ 모니터링 알림 설정 완료"
-
-    - name: 🛡️ Configure Diagnostic Settings
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true' && env.TRAFFIC_SHIFT_SUCCESS == 'true'
-      shell: pwsh
-      run: |
-        Write-Host "🛡️ 진단 설정 구성 중..."
-        $appName = $env:APP_NAME
-        $rgName = $env:RESOURCE_GROUP
+        Write-Host "Azure Monitor 알림이 Slack 알림과 함께 구성되었습니다."
         
-        # 리소스 ID 가져오기
-        $resourceId = az containerapp show --name $appName --resource-group $rgName --query id -o tsv
-        
-        # Log Analytics 워크스페이스 확인 또는 생성
-        $workspaceName = "${appName}-logs"
-        $workspace = az monitor log-analytics workspace list --resource-group $rgName --query "[?name=='$workspaceName'].id" -o tsv
-        
-        if (-not $workspace) {
-            Write-Host "🔧 Log Analytics 워크스페이스 생성 중..."
-            $workspace = az monitor log-analytics workspace create `
-              --resource-group $rgName `
-              --workspace-name $workspaceName `
-              --query id -o tsv
-        }
-        
-        # 진단 설정 구성
-        az monitor diagnostic-settings create `
-          --name "${appName}-diagnostics" `
-          --resource $resourceId `
-          --logs '[{"category": "ContainerAppSystemLogs","enabled": true},{"category": "ContainerAppConsoleLogs","enabled": true}]' `
-          --metrics '[{"category": "AllMetrics","enabled": true}]' `
-          --workspace $workspace
-
-    - name: 🔄 Set Up Auto-Scaling Rules
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true' && env.TRAFFIC_SHIFT_SUCCESS == 'true'
-      shell: pwsh
-      run: |
-        Write-Host "🔄 자동 확장 규칙 구성 중..."
-        $appName = $env:APP_NAME
-        $rgName = $env:RESOURCE_GROUP
-        
-        # HTTP 요청 기반 자동 확장 설정
-        az containerapp update `
-          --name $appName `
-          --resource-group $rgName `
-          --min-replicas 1 `
-          --max-replicas 10 `
-          --scale-rule-name http-scale-rule `
-          --scale-rule-http-concurrency 50 `
-          --scale-rule-http-concurrency-threshold 100
-        
-        # CPU 기반 자동 확장 설정 추가 (명령 라인에서 지원되는 경우)
-        # Azure CLI에서 지원하는지 확인 필요
-        try {
-          az containerapp scale-rule add `
-            --name $appName `
-            --resource-group $rgName `
-            --rule-name cpu-rule `
-            --type cpu `
-            --metadata type=Utilization threshold=70
-        } catch {
-          Write-Host "ℹ️ CPU 기반 자동 확장은 Azure CLI에서 완전히 지원되지 않을 수 있습니다."
-        }
-
-    - name: 📢 Deploy Automated Notification Logic App
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.TRAFFIC_SHIFT_SUCCESS == 'true'
-      shell: pwsh
-      run: |
-        Write-Host "📢 알림 자동화를 위한 Logic App 배포 중..."
-        $appName = $env:APP_NAME
-        $rgName = $env:RESOURCE_GROUP
-        $logicAppName = "${appName}-notifications"
-        
-        # Logic App이 이미 있는지 확인
-        $existingLogicApp = az logic workflow list --resource-group $rgName --query "[?name=='$logicAppName'].id" -o tsv
-        
-        if (-not $existingLogicApp) {
-            # Logic App 정의 - 이메일 알림 예시 (실제 환경에 맞게 조정 필요)
-            $workflowDefinition = '{
-                "definition": {
-                    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
-                    "actions": {
-                        "Send_an_email": {
-                            "inputs": {
-                                "body": {
-                                    "Body": "애플리케이션이 성공적으로 배포되었습니다.\n\n애플리케이션: @{triggerBody()?[\'appName\']}\n리비전: @{triggerBody()?[\'revision\']}\n배포 시간: @{utcNow()}",
-                                    "Subject": "배포 알림: @{triggerBody()?[\'appName\']}",
-                                    "To": "team@example.com"
-                                },
-                                "host": {
-                                    "connection": {
-                                        "name": "@parameters(\'$connections\')[\'office365\'][\'connectionId\']"
-                                    }
-                                },
-                                "method": "post",
-                                "path": "/v2/Mail"
-                            },
-                            "type": "ApiConnection"
-                        }
-                    },
-                    "parameters": {
-                        "$connections": {
-                            "defaultValue": {},
-                            "type": "Object"
-                        }
-                    },
-                    "triggers": {
-                        "manual": {
-                            "inputs": {},
-                            "schema": {
-                                "properties": {
-                                    "appName": {
-                                        "type": "string"
-                                    },
-                                    "revision": {
-                                        "type": "string"
-                                    },
-                                    "status": {
-                                        "type": "string"
-                                    },
-                                    "details": {
-                                        "type": "string"
-                                    }
-                                },
-                                "type": "object"
-                            },
-                            "kind": "Http",
-                            "type": "Request"
-                        }
-                    }
+        # Slack으로 알림 설정 완료 메시지 전송
+        $payload = @{
+          attachments = @(
+            @{
+              fallback = "모니터링 알림 설정 완료"
+              color = "#3AA3E3"
+              pretext = "📊 *Azure 모니터링 알림 설정 완료*"
+              title = "$appName 애플리케이션의 모니터링 알림이 설정되었습니다"
+              text = "다음 이슈 발생 시 이 채널로 자동 알림이 전송됩니다:\n• CPU 사용량 75% 초과\n• 메모리 사용량 80% 초과\n• HTTP 오류 응답 증가"
+              fields = @(
+                @{
+                  title = "앱"
+                  value = $appName
+                  short = $true
+                },
+                @{
+                  title = "리소스 그룹"
+                  value = $rgName
+                  short = $true
                 }
-            }'
-            
-            Write-Host "🔧 새 Logic App 생성 중..."
-            az logic workflow create --resource-group $rgName --name $logicAppName --definition "$workflowDefinition"
-            Write-Host "✅ Logic App 배포 완료"
-        } else {
-            Write-Host "ℹ️ Logic App이 이미 존재합니다: $logicAppName"
-        }
+              )
+              footer = "Azure Monitor"
+              footer_icon = "https://azure.microsoft.com/svghandler/monitor/?width=300&height=300"
+              ts = [Math]::Floor([decimal](Get-Date -UFormat "%s"))
+            }
+          )
+        } | ConvertTo-Json -Depth 4
         
-        # Logic App 트리거 URL 가져오기
-        $logicAppTriggerUrl = az logic workflow trigger list --resource-group $rgName --workflow-name $logicAppName --query "[0].workflow.id" -o tsv
-        
-        if ($logicAppTriggerUrl) {
-            Write-Host "🔗 Logic App 트리거 URL 저장 중..."
-            echo "LOGIC_APP_TRIGGER_URL=$logicAppTriggerUrl" >> $GITHUB_ENV
-        } else {
-            Write-Host "⚠️ Logic App 트리거 URL을 가져올 수 없습니다. 직접 Slack으로 알림을 전송합니다."
-        }
-
-    - name: 📢 Send Deployment Notification
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main' && always()
-      shell: pwsh
-      run: |
-        $deploymentSuccess = $env:TRAFFIC_SHIFT_SUCCESS
-        $appName = $env:APP_NAME
-        $newRevision = $env:NEW_REVISION
-        
-        if ($deploymentSuccess -eq "true") {
-          Write-Host "✅ 배포 성공! 애플리케이션 $appName의 새 리비전 $newRevision이 성공적으로 배포되었습니다."
-          
-          # Azure Monitor에 사용자 지정 로그 이벤트 전송
-          $customEvent = @{
-            timestamp = (Get-Date).ToUniversalTime().ToString("o")
-            applicationName = $appName
-            revision = $newRevision
-            event = "deployment_success"
-            details = "Blue/Green 배포가 성공적으로 완료되었습니다."
-          } | ConvertTo-Json
-          
-          # Application Insights에 이벤트 전송 (실제 구현 시 App Insights 키 필요)
-          # Invoke-WebRequest -Uri "https://dc.services.visualstudio.com/v2/track" -Method Post -Body $customEvent -ContentType "application/json"
-          
-          Write-Host "📊 배포 메트릭이 Azure Monitor에 기록되었습니다."
-          
-        } else {
-          Write-Host "❌ 배포 실패 또는 롤백됨. 자세한 로그를 확인해주세요."
-          
-          # 실패 이벤트 기록
-          $failureEvent = @{
-            timestamp = (Get-Date).ToUniversalTime().ToString("o")
-            applicationName = $appName
-            revision = $newRevision
-            event = "deployment_failure"
-            details = "배포 중 오류 발생 또는 롤백 수행됨"
-          } | ConvertTo-Json
-        }
+        Invoke-RestMethod -Uri $slackWebhookUrl -Method Post -Body $payload -ContentType "application/json"
