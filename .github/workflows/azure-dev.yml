@@ -114,24 +114,23 @@ jobs:
           --federated-credential-provider "github" `
           --tenant-id "$Env:AZURE_TENANT_ID"
 
+    - name: 🏗️ Provision Infrastructure
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
+      run: azd provision --no-prompt
+      env:
+        AZD_INITIAL_ENVIRONMENT_CONFIG: ${{ secrets.AZD_INITIAL_ENVIRONMENT_CONFIG }}
+
     - name: 🔧 Set Azure Environment Variables
       if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
       shell: pwsh
       run: |
-        # OpenAI 연결 문자열 설정
         azd env set ConnectionStrings__openai "$Env:ConnectionStrings__openai"
-        
-        # Azure Monitor 활성화 설정 (중요)
-        azd env set EnableAzureMonitoring true
-        azd env set IsTestEnvironment false
         
         # 현재 설정 출력 (디버깅 용도)
         Write-Host "🔍 Environment settings before deployment:"
         azd env get-values | Out-String | Write-Host
 
-    - name: 🚢 Provision and Deploy (One Command)
+    - name: 🚢 Deploy Application
       if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
       run: azd up --no-prompt
-      env:
-        AZD_INITIAL_ENVIRONMENT_CONFIG: ${{ secrets.AZD_INITIAL_ENVIRONMENT_CONFIG }}
-        EnableAzureMonitoring: "true"
+      
