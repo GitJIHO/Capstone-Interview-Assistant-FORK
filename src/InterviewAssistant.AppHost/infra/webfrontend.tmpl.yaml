@@ -20,9 +20,7 @@ properties:
     registries:
       - server: {{ .Env.AZURE_CONTAINER_REGISTRY_ENDPOINT }}
         identity: {{ .Env.AZURE_CONTAINER_REGISTRY_MANAGED_IDENTITY_ID }}
-    secrets:
-      - name: applicationinsights-connection-string
-        value: '{{ .Env.APPLICATIONINSIGHTS_CONNECTION_STRING }}'
+    secrets: []
   template:
     containers:
       - image: {{ .Image }}
@@ -44,8 +42,6 @@ properties:
             value: http://apiservice.internal.{{ .Env.AZURE_CONTAINER_APPS_ENVIRONMENT_DEFAULT_DOMAIN }}
           - name: services__apiservice__https__0
             value: https://apiservice.internal.{{ .Env.AZURE_CONTAINER_APPS_ENVIRONMENT_DEFAULT_DOMAIN }}
-          - name: APPLICATIONINSIGHTS_CONNECTION_STRING
-            secretRef: applicationinsights-connection-string
     scale:
       minReplicas: 1
 tags:
