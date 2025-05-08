@@ -225,33 +225,40 @@ jobs:
       run: |
         Write-Host "Azure Monitor 알림 구성 중..."
         
-        # Azure 인증 갱신 - azd 대신 az 사용
-        Write-Host "Azure 계정에 재인증 중..."
-        # 인증 상태 확인 후 필요시 재인증
-        az account show > $null 2>&1
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Azure에 로그인합니다..."
-          # 서비스 주체 방식으로 인증
-          az login --service-principal -u "$Env:AZURE_CLIENT_ID" --tenant "$Env:AZURE_TENANT_ID"
-          
-          # 구독 설정
-          if (-not [string]::IsNullOrEmpty("$Env:AZURE_SUBSCRIPTION_ID")) {
-            az account set --subscription "$Env:AZURE_SUBSCRIPTION_ID"
-          }
-        }
+        # Azure 인증 - GitHub Actions OIDC 토큰 방식 사용
+        Write-Host "Azure 계정에 OIDC 방식으로 인증 중..."
         
-        # 필요한 변수 설정 - 보다 안정적인 방법으로 리소스 그룹 가져오기
+        # GitHub OIDC 토큰 가져오기 및 Azure에 로그인
+        $token = (Invoke-WebRequest -Uri "${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}" -Headers @{Authorization = "Bearer ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}"}).Content | ConvertFrom-Json | Select-Object -ExpandProperty Value
+        
+        # Azure CLI로 OIDC 로그인
+        az login --service-principal `
+          --username "$Env:AZURE_CLIENT_ID" `
+          --tenant "$Env:AZURE_TENANT_ID" `
+          --federated-token $token
+        
+        # 구독 설정
+        Write-Host "구독 설정 중: $Env:AZURE_SUBSCRIPTION_ID"
+        az account set --subscription "$Env:AZURE_SUBSCRIPTION_ID"
+        
+        # 인증 확인
+        Write-Host "현재 Azure 계정 정보:"
+        az account show
+        
+        # 필요한 변수 설정
         try {
-          # 환경 변수 확인
-          $azdValues = azd env get-values
-          Write-Host "AZD 환경 변수:"
-          $azdValues | ForEach-Object { Write-Host $_ }
+          # 환경 변수는 azd로 가져오지 말고 직접 사용
+          Write-Host "리소스 정보 구성 중..."
           
-          # 컨테이너 앱 환경 ID에서 리소스 그룹 추출
-          $envIdLine = $azdValues | Where-Object { $_ -like "*AZURE_CONTAINER_APPS_ENVIRONMENT_ID*" }
-          $rgName = "rg-InterviewAssistance"  # 로그에서 확인된 실제 리소스 그룹 이름
-          
+          # 로그에서 확인된 실제 리소스 그룹 이름
+          $rgName = "rg-InterviewAssistance"
           Write-Host "사용할 리소스 그룹: $rgName"
+          
+          # 리소스 그룹 존재 확인
+          $rgExists = az group exists --name $rgName
+          if ($rgExists -ne "true") {
+            throw "리소스 그룹 $rgName이 존재하지 않습니다."
+          }
           
           # 컨테이너 앱 목록 조회
           Write-Host "컨테이너 앱 목록 조회 중..."
