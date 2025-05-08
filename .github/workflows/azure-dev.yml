@@ -126,11 +126,28 @@ jobs:
       run: |
         azd env set ConnectionStrings__openai "$Env:ConnectionStrings__openai"
         
-        # 현재 설정 출력 (디버깅 용도)
-        Write-Host "🔍 Environment settings before deployment:"
+        # 자동 프로비저닝 활성화
+        azd env set EnableAzureMonitoring true
+        azd env set IsTestEnvironment false
+        
+        # Application Insights 자동 활성화 설정
+        azd env set AZURE_ENABLE_APP_INSIGHTS true
+        azd env set AZURE_USE_APPLICATION_INSIGHTS true
+        
+        # Azure Monitor 추가 설정
+        azd env set AZURE_MONITOR_ENABLE_DASHBOARD true
+        azd env set AZURE_MONITOR_ENABLE_TRACING true
+        azd env set AZURE_MONITOR_ENABLE_METRICS true
+        azd env set AZURE_MONITOR_ENABLE_LOGGING true
+        
+        # 디버깅을 위한 설정 출력
+        Write-Host "🔍 Current azd environment settings:"
         azd env get-values | Out-String | Write-Host
-
+    
     - name: 🚢 Deploy Application
       if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
-      run: azd up --no-prompt
-      
+      run: azd deploy --no-prompt
+      env:
+        EnableAzureMonitoring: "true"
+        AZURE_ENABLE_APP_INSIGHTS: "true"
+        AZURE_USE_APPLICATION_INSIGHTS: "true"
