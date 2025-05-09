@@ -132,8 +132,8 @@ jobs:
     #     EnableAzureMonitoring: "true"
 
     - name: 🚢 Deploy Application
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
-    run: azd deploy --no-prompt
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
+      run: azd deploy --no-prompt
     
     # - name: 🔔 Send Deployment Status to Slack
     #   if: github.event_name == 'push' && github.ref == 'refs/heads/main' && always()
