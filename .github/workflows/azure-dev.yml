@@ -124,18 +124,12 @@ jobs:
       run: |
         azd env set ConnectionStrings__openai "$Env:ConnectionStrings__openai"
     
-    # - name: 🚢 Deploy & Update Infrastructure
-    #   id: deploy
-    #   if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
-    #   run: azd up --no-prompt
-    #   env:
-    #     EnableAzureMonitoring: "true"
-
-    - name: 🚢 Deploy Application
+    - name: 🚢 Deploy & Update Infrastructure
+      id: deploy
       if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test-status.outputs.tests_passed == 'true'
       run: azd up --no-prompt
-      # env:
-      #   EnableAzureMonitoring: "true"
+      env:
+        EnableAzureMonitoring: "true"
     
     # - name: 🔔 Send Deployment Status to Slack
     #   if: github.event_name == 'push' && github.ref == 'refs/heads/main' && always()
