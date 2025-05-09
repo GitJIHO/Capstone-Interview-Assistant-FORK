@@ -51,10 +51,10 @@ jobs:
     - name: 📦 Restore Dependencies
       run: dotnet restore
         
-    # - name: 🔧 Configure Test Environment Variables
-    #   run: |
-    #     # 테스트용 환경 변수 설정
-    #     echo "ConnectionStrings__applicationinsights=InstrumentationKey=00000000-0000-0000-0000-000000000000;IngestionEndpoint=https://example.com" >> $GITHUB_ENV
+    - name: 🔧 Configure Test Environment Variables
+      run: |
+        # 테스트용 환경 변수 설정
+        echo "ConnectionStrings__applicationinsights=InstrumentationKey=00000000-0000-0000-0000-000000000000;IngestionEndpoint=https://example.com" >> $GITHUB_ENV
         
     - name: 🏗️ Build Project
       run: dotnet build --configuration Release
