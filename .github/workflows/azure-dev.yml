@@ -54,9 +54,7 @@ jobs:
     - name: 🔧 Configure Test Environment Variables
       run: |
         # 테스트용 환경 변수 설정
-        echo "APPLICATIONINSIGHTS_CONNECTION_STRING=InstrumentationKey=00000000-0000-0000-0000-000000000000;IngestionEndpoint=https://example.com" >> $GITHUB_ENV
-        echo "EnableAzureMonitoring=false" >> $GITHUB_ENV
-        echo "IsTestEnvironment=true" >> $GITHUB_ENV
+        echo "ConnectionStrings__applicationinsights=InstrumentationKey=00000000-0000-0000-0000-000000000000;IngestionEndpoint=https://example.com" >> $GITHUB_ENV
         
     - name: 🏗️ Build Project
       run: dotnet build --configuration Release
@@ -133,248 +131,248 @@ jobs:
       env:
         EnableAzureMonitoring: "true"
     
-    - name: 🔔 Send Deployment Status to Slack
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main' && always()
-      shell: pwsh
-      run: |
-        $slackWebhookUrl = "${{ secrets.SLACK_WEBHOOK_URL }}"
-        $deployStatus = "${{ steps.deploy.outcome }}"
-        $deploySucess = ($deployStatus -eq "success" -or $deployStatus -eq "skipped")
+    # - name: 🔔 Send Deployment Status to Slack
+    #   if: github.event_name == 'push' && github.ref == 'refs/heads/main' && always()
+    #   shell: pwsh
+    #   run: |
+    #     $slackWebhookUrl = "${{ secrets.SLACK_WEBHOOK_URL }}"
+    #     $deployStatus = "${{ steps.deploy.outcome }}"
+    #     $deploySucess = ($deployStatus -eq "success" -or $deployStatus -eq "skipped")
         
-        $appName = "$Env:AZURE_ENV_NAME"
+    #     $appName = "$Env:AZURE_ENV_NAME"
         
-        # 한국 시간대로 설정 (UTC+9)
-        try {
-          $koreaTimeZone = [System.TimeZoneInfo]::FindSystemTimeZoneById("Asia/Seoul")
-        } catch {
-          try {
-            # Windows 시스템에서는 다른 ID 사용
-            $koreaTimeZone = [System.TimeZoneInfo]::FindSystemTimeZoneById("Korea Standard Time")
-          } catch {
-            # 시간대를 찾을 수 없는 경우 기본 시간 사용
-            $now = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-            Write-Host "한국 시간대를 찾을 수 없어 기본 시간을 사용합니다: $now"
-          }
-        }
+    #     # 한국 시간대로 설정 (UTC+9)
+    #     try {
+    #       $koreaTimeZone = [System.TimeZoneInfo]::FindSystemTimeZoneById("Asia/Seoul")
+    #     } catch {
+    #       try {
+    #         # Windows 시스템에서는 다른 ID 사용
+    #         $koreaTimeZone = [System.TimeZoneInfo]::FindSystemTimeZoneById("Korea Standard Time")
+    #       } catch {
+    #         # 시간대를 찾을 수 없는 경우 기본 시간 사용
+    #         $now = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    #         Write-Host "한국 시간대를 찾을 수 없어 기본 시간을 사용합니다: $now"
+    #       }
+    #     }
         
-        if ($koreaTimeZone) {
-          $utcNow = [System.DateTime]::UtcNow
-          $koreaTime = [System.TimeZoneInfo]::ConvertTimeFromUtc($utcNow, $koreaTimeZone)
-          $now = $koreaTime.ToString("yyyy-MM-dd HH:mm:ss")
-        } else {
-          $now = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-        }
+    #     if ($koreaTimeZone) {
+    #       $utcNow = [System.DateTime]::UtcNow
+    #       $koreaTime = [System.TimeZoneInfo]::ConvertTimeFromUtc($utcNow, $koreaTimeZone)
+    #       $now = $koreaTime.ToString("yyyy-MM-dd HH:mm:ss")
+    #     } else {
+    #       $now = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    #     }
         
-        if ($deploySucess) {
-          $status = "✅ 성공"
-          $color = "#36a64f"  # 초록색
-          $message = "Azure Container App이 성공적으로 배포되었습니다."
-        } else {
-          $status = "❌ 실패"
-          $color = "#ff0000"  # 빨간색
-          $message = "Azure Container App 배포 중 오류가 발생했습니다."
-        }
+    #     if ($deploySucess) {
+    #       $status = "✅ 성공"
+    #       $color = "#36a64f"  # 초록색
+    #       $message = "Azure Container App이 성공적으로 배포되었습니다."
+    #     } else {
+    #       $status = "❌ 실패"
+    #       $color = "#ff0000"  # 빨간색
+    #       $message = "Azure Container App 배포 중 오류가 발생했습니다."
+    #     }
         
-        $payload = @{
-          attachments = @(
-            @{
-              fallback = "배포 알림: $status"
-              color = $color
-              pretext = "📢 *Azure 배포 알림*"
-              title = "배포 상태: $status"
-              text = $message
-              fields = @(
-                @{
-                  title = "앱"
-                  value = $appName
-                  short = $true
-                },
-                @{
-                  title = "환경"
-                  value = "$Env:AZURE_LOCATION"
-                  short = $true
-                },
-                @{
-                  title = "배포 시간"
-                  value = $now
-                  short = $true
-                },
-                @{
-                  title = "배포자"
-                  value = "${{ github.actor }}"
-                  short = $true
-                }
-              )
-              footer = "GitHub Actions"
-              footer_icon = "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"
-              ts = [Math]::Floor([decimal](Get-Date -UFormat "%s"))
-            }
-          )
-        } | ConvertTo-Json -Depth 4
+    #     $payload = @{
+    #       attachments = @(
+    #         @{
+    #           fallback = "배포 알림: $status"
+    #           color = $color
+    #           pretext = "📢 *Azure 배포 알림*"
+    #           title = "배포 상태: $status"
+    #           text = $message
+    #           fields = @(
+    #             @{
+    #               title = "앱"
+    #               value = $appName
+    #               short = $true
+    #             },
+    #             @{
+    #               title = "환경"
+    #               value = "$Env:AZURE_LOCATION"
+    #               short = $true
+    #             },
+    #             @{
+    #               title = "배포 시간"
+    #               value = $now
+    #               short = $true
+    #             },
+    #             @{
+    #               title = "배포자"
+    #               value = "${{ github.actor }}"
+    #               short = $true
+    #             }
+    #           )
+    #           footer = "GitHub Actions"
+    #           footer_icon = "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"
+    #           ts = [Math]::Floor([decimal](Get-Date -UFormat "%s"))
+    #         }
+    #       )
+    #     } | ConvertTo-Json -Depth 4
         
-        try {
-          Invoke-RestMethod -Uri $slackWebhookUrl -Method Post -Body $payload -ContentType "application/json"
-          Write-Host "✅ Slack 알림을 성공적으로 전송했습니다."
-        } catch {
-          Write-Host "⚠️ Slack 알림 전송 중 오류 발생: $_"
-        }
+    #     try {
+    #       Invoke-RestMethod -Uri $slackWebhookUrl -Method Post -Body $payload -ContentType "application/json"
+    #       Write-Host "✅ Slack 알림을 성공적으로 전송했습니다."
+    #     } catch {
+    #       Write-Host "⚠️ Slack 알림 전송 중 오류 발생: $_"
+    #     }
 
-    - name: 🔐 Azure Login for Monitor Configuration
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main' && (steps.deploy.outcome == 'success' || steps.deploy.outcome == 'skipped')
-      uses: azure/login@v1
-      with:
-        client-id: ${{ vars.AZURE_CLIENT_ID }}
-        tenant-id: ${{ vars.AZURE_TENANT_ID }}
-        subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+    # - name: 🔐 Azure Login for Monitor Configuration
+    #   if: github.event_name == 'push' && github.ref == 'refs/heads/main' && (steps.deploy.outcome == 'success' || steps.deploy.outcome == 'skipped')
+    #   uses: azure/login@v1
+    #   with:
+    #     client-id: ${{ vars.AZURE_CLIENT_ID }}
+    #     tenant-id: ${{ vars.AZURE_TENANT_ID }}
+    #     subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
-    - name: 🔧 Configure Azure Monitor Alerts with Slack
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main' && (steps.deploy.outcome == 'success' || steps.deploy.outcome == 'skipped')
-      shell: pwsh
-      run: |
-        Write-Host "Azure Monitor 알림 구성 중..."
+    # - name: 🔧 Configure Azure Monitor Alerts with Slack
+    #   if: github.event_name == 'push' && github.ref == 'refs/heads/main' && (steps.deploy.outcome == 'success' || steps.deploy.outcome == 'skipped')
+    #   shell: pwsh
+    #   run: |
+    #     Write-Host "Azure Monitor 알림 구성 중..."
         
-        # 구독 확인
-        Write-Host "구독 설정 확인 중: $Env:AZURE_SUBSCRIPTION_ID"
-        az account set --subscription "$Env:AZURE_SUBSCRIPTION_ID"
+    #     # 구독 확인
+    #     Write-Host "구독 설정 확인 중: $Env:AZURE_SUBSCRIPTION_ID"
+    #     az account set --subscription "$Env:AZURE_SUBSCRIPTION_ID"
         
-        try {
-          # 리소스 설정
-          $rgName = "rg-InterviewAssistance"  # 로그에서 확인된 실제 리소스 그룹 이름
-          Write-Host "사용할 리소스 그룹: $rgName"
+    #     try {
+    #       # 리소스 설정
+    #       $rgName = "rg-InterviewAssistance"  # 로그에서 확인된 실제 리소스 그룹 이름
+    #       Write-Host "사용할 리소스 그룹: $rgName"
           
-          # 컨테이너 앱 목록 조회
-          Write-Host "컨테이너 앱 목록 조회 중..."
-          $apps = az containerapp list --resource-group $rgName --query "[].name" -o tsv
+    #       # 컨테이너 앱 목록 조회
+    #       Write-Host "컨테이너 앱 목록 조회 중..."
+    #       $apps = az containerapp list --resource-group $rgName --query "[].name" -o tsv
           
-          if ([string]::IsNullOrEmpty($apps)) {
-            Write-Host "리소스 그룹 $rgName에서 컨테이너 앱을 찾을 수 없습니다."
-            throw "컨테이너 앱을 찾을 수 없습니다."
-          }
+    #       if ([string]::IsNullOrEmpty($apps)) {
+    #         Write-Host "리소스 그룹 $rgName에서 컨테이너 앱을 찾을 수 없습니다."
+    #         throw "컨테이너 앱을 찾을 수 없습니다."
+    #       }
           
-          # 첫 번째 앱 선택
-          $appArr = $apps -split "\s+"
-          $appName = $appArr[0]
-          Write-Host "조회된 컨테이너 앱: $appName"
+    #       # 첫 번째 앱 선택
+    #       $appArr = $apps -split "\s+"
+    #       $appName = $appArr[0]
+    #       Write-Host "조회된 컨테이너 앱: $appName"
           
-          # 컨테이너 앱 리소스 ID 가져오기
-          Write-Host "Container App: $appName in $rgName"
-          $resourceId = az containerapp show --name $appName --resource-group $rgName --query id -o tsv
-          $slackWebhookUrl = "${{ secrets.SLACK_WEBHOOK_URL }}"
+    #       # 컨테이너 앱 리소스 ID 가져오기
+    #       Write-Host "Container App: $appName in $rgName"
+    #       $resourceId = az containerapp show --name $appName --resource-group $rgName --query id -o tsv
+    #       $slackWebhookUrl = "${{ secrets.SLACK_WEBHOOK_URL }}"
           
-          # 액션 그룹 생성 (Slack 웹훅)
-          $actionGroupName = "SlackNotifications"
-          Write-Host "액션 그룹 생성 중: $actionGroupName"
+    #       # 액션 그룹 생성 (Slack 웹훅)
+    #       $actionGroupName = "SlackNotifications"
+    #       Write-Host "액션 그룹 생성 중: $actionGroupName"
           
-          # 기존 액션 그룹이 있는지 확인
-          $existingActionGroup = az monitor action-group show --resource-group $rgName --name $actionGroupName 2>$null
+    #       # 기존 액션 그룹이 있는지 확인
+    #       $existingActionGroup = az monitor action-group show --resource-group $rgName --name $actionGroupName 2>$null
           
-          if ([string]::IsNullOrEmpty($existingActionGroup)) {
-            # 신규 생성
-            Write-Host "새 액션 그룹 생성"
-            az monitor action-group create `
-              --resource-group $rgName `
-              --name $actionGroupName `
-              --short-name "Slack" `
-              --action webhook SlackWebhook $slackWebhookUrl
-          } else {
-            # 기존 그룹 업데이트
-            Write-Host "기존 액션 그룹 업데이트"
-            az monitor action-group update `
-              --resource-group $rgName `
-              --name $actionGroupName `
-              --add webhookReceivers name=SlackWebhook serviceUri=$slackWebhookUrl
-          }
+    #       if ([string]::IsNullOrEmpty($existingActionGroup)) {
+    #         # 신규 생성
+    #         Write-Host "새 액션 그룹 생성"
+    #         az monitor action-group create `
+    #           --resource-group $rgName `
+    #           --name $actionGroupName `
+    #           --short-name "Slack" `
+    #           --action webhook SlackWebhook $slackWebhookUrl
+    #       } else {
+    #         # 기존 그룹 업데이트
+    #         Write-Host "기존 액션 그룹 업데이트"
+    #         az monitor action-group update `
+    #           --resource-group $rgName `
+    #           --name $actionGroupName `
+    #           --add webhookReceivers name=SlackWebhook serviceUri=$slackWebhookUrl
+    #       }
           
-          $actionGroupId = az monitor action-group show --resource-group $rgName --name $actionGroupName --query id -o tsv
+    #       $actionGroupId = az monitor action-group show --resource-group $rgName --name $actionGroupName --query id -o tsv
           
-          # 사용 가능한 지표 확인
-          Write-Host "컨테이너 앱에 사용 가능한 지표 확인 중..."
-          $availableMetrics = az monitor metrics list-metrics --resource $resourceId --query "[].name.value" -o tsv
-          Write-Host "사용 가능한 지표 목록:"
-          $availableMetrics | ForEach-Object { Write-Host "- $_" }
+    #       # 사용 가능한 지표 확인
+    #       Write-Host "컨테이너 앱에 사용 가능한 지표 확인 중..."
+    #       $availableMetrics = az monitor metrics list-metrics --resource $resourceId --query "[].name.value" -o tsv
+    #       Write-Host "사용 가능한 지표 목록:"
+    #       $availableMetrics | ForEach-Object { Write-Host "- $_" }
           
-          # 실제 지표를 사용하여 알림 생성
-          try {
-            # CPU 사용량 알림
-            $alertName = "${appName}-cpu-alert"
-            az monitor metrics alert create `
-              --name $alertName `
-              --resource-group $rgName `
-              --scopes $resourceId `
-              --condition "avg CPU > 75" `
-              --window-size 5m `
-              --evaluation-frequency 1m `
-              --description "CPU 사용량 75% 초과 알림" `
-              --action $actionGroupId
+    #       # 실제 지표를 사용하여 알림 생성
+    #       try {
+    #         # CPU 사용량 알림
+    #         $alertName = "${appName}-cpu-alert"
+    #         az monitor metrics alert create `
+    #           --name $alertName `
+    #           --resource-group $rgName `
+    #           --scopes $resourceId `
+    #           --condition "avg CPU > 75" `
+    #           --window-size 5m `
+    #           --evaluation-frequency 1m `
+    #           --description "CPU 사용량 75% 초과 알림" `
+    #           --action $actionGroupId
             
-            Write-Host "✅ CPU 알림 생성 완료"
-          } catch {
-            Write-Host "⚠️ CPU 알림 생성 실패: $_"
-          }
+    #         Write-Host "✅ CPU 알림 생성 완료"
+    #       } catch {
+    #         Write-Host "⚠️ CPU 알림 생성 실패: $_"
+    #       }
           
-          try {
-            # 메모리 사용량 알림
-            $alertName = "${appName}-memory-alert"
-            az monitor metrics alert create `
-              --name $alertName `
-              --resource-group $rgName `
-              --scopes $resourceId `
-              --condition "avg MemoryWorkingSet > 80" `
-              --window-size 5m `
-              --evaluation-frequency 1m `
-              --description "메모리 사용량 80% 초과 알림" `
-              --action $actionGroupId
+    #       try {
+    #         # 메모리 사용량 알림
+    #         $alertName = "${appName}-memory-alert"
+    #         az monitor metrics alert create `
+    #           --name $alertName `
+    #           --resource-group $rgName `
+    #           --scopes $resourceId `
+    #           --condition "avg MemoryWorkingSet > 80" `
+    #           --window-size 5m `
+    #           --evaluation-frequency 1m `
+    #           --description "메모리 사용량 80% 초과 알림" `
+    #           --action $actionGroupId
             
-            Write-Host "✅ 메모리 알림 생성 완료"
-          } catch {
-            Write-Host "⚠️ 메모리 알림 생성 실패: $_"
-          }
+    #         Write-Host "✅ 메모리 알림 생성 완료"
+    #       } catch {
+    #         Write-Host "⚠️ 메모리 알림 생성 실패: $_"
+    #       }
           
-          try {
-            # HTTP 오류 응답 알림
-            $alertName = "${appName}-http-error-alert"
-            az monitor metrics alert create `
-              --name $alertName `
-              --resource-group $rgName `
-              --scopes $resourceId `
-              --condition "total HttpResponseErrors > 10" `
-              --window-size 5m `
-              --evaluation-frequency 1m `
-              --description "HTTP 오류 응답 비율 알림" `
-              --action $actionGroupId
+    #       try {
+    #         # HTTP 오류 응답 알림
+    #         $alertName = "${appName}-http-error-alert"
+    #         az monitor metrics alert create `
+    #           --name $alertName `
+    #           --resource-group $rgName `
+    #           --scopes $resourceId `
+    #           --condition "total HttpResponseErrors > 10" `
+    #           --window-size 5m `
+    #           --evaluation-frequency 1m `
+    #           --description "HTTP 오류 응답 비율 알림" `
+    #           --action $actionGroupId
             
-            Write-Host "✅ HTTP 오류 알림 생성 완료"
-          } catch {
-            Write-Host "⚠️ HTTP 오류 알림 생성 실패: $_"
-          }
+    #         Write-Host "✅ HTTP 오류 알림 생성 완료"
+    #       } catch {
+    #         Write-Host "⚠️ HTTP 오류 알림 생성 실패: $_"
+    #       }
           
-          Write-Host "Azure Monitor 알림 구성 프로세스가 완료되었습니다."
+    #       Write-Host "Azure Monitor 알림 구성 프로세스가 완료되었습니다."
           
-        } catch {
-          Write-Host "⚠️ 오류 발생: $_"
-          Write-Host "⚠️ 스택 트레이스: $($_.ScriptStackTrace)"
+    #     } catch {
+    #       Write-Host "⚠️ 오류 발생: $_"
+    #       Write-Host "⚠️ 스택 트레이스: $($_.ScriptStackTrace)"
           
-          # 오류 알림 전송
-          $errorPayload = @{
-            attachments = @(
-              @{
-                fallback = "Azure Monitor 알림 설정 실패"
-                color = "#FF0000"
-                pretext = "⚠️ *Azure 모니터링 알림 설정 실패*"
-                title = "Azure Monitor 알림 구성 중 오류가 발생했습니다"
-                text = "오류 메시지: $_\n\n자세한 내용은 GitHub Actions 로그를 확인해주세요."
-                footer = "GitHub Actions"
-                footer_icon = "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"
-              }
-            )
-          } | ConvertTo-Json
+    #       # 오류 알림 전송
+    #       $errorPayload = @{
+    #         attachments = @(
+    #           @{
+    #             fallback = "Azure Monitor 알림 설정 실패"
+    #             color = "#FF0000"
+    #             pretext = "⚠️ *Azure 모니터링 알림 설정 실패*"
+    #             title = "Azure Monitor 알림 구성 중 오류가 발생했습니다"
+    #             text = "오류 메시지: $_\n\n자세한 내용은 GitHub Actions 로그를 확인해주세요."
+    #             footer = "GitHub Actions"
+    #             footer_icon = "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"
+    #           }
+    #         )
+    #       } | ConvertTo-Json
           
-          try {
-            Invoke-RestMethod -Uri "${{ secrets.SLACK_WEBHOOK_URL }}" -Method Post -Body $errorPayload -ContentType "application/json"
-          } catch {
-            Write-Host "⚠️ Slack 오류 알림 전송 실패: $_"
-          }
+    #       try {
+    #         Invoke-RestMethod -Uri "${{ secrets.SLACK_WEBHOOK_URL }}" -Method Post -Body $errorPayload -ContentType "application/json"
+    #       } catch {
+    #         Write-Host "⚠️ Slack 오류 알림 전송 실패: $_"
+    #       }
           
-          # 작업은 실패하지 않게 처리
-          exit 0
-        }
+    #       # 작업은 실패하지 않게 처리
+    #       exit 0
+    #     }

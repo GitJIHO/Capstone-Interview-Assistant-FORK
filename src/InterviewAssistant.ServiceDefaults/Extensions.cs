@@ -82,10 +82,25 @@ public static class Extensions
         {
             var connectionString = builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
             
+            if (string.IsNullOrEmpty(connectionString))
+            {
+                connectionString = builder.Configuration.GetConnectionString("applicationinsights");
+            }
+            
+            // If found in ConnectionStrings, set it as an environment variable (Azure SDK uses this value)
+            if (!string.IsNullOrEmpty(connectionString) && string.IsNullOrEmpty(builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]))
+            {
+                Environment.SetEnvironmentVariable("APPLICATIONINSIGHTS_CONNECTION_STRING", connectionString);
+            }
+            
             if (!string.IsNullOrEmpty(connectionString))
             {
                 builder.Services.AddOpenTelemetry().UseAzureMonitor();
-                Console.WriteLine("✅ Azure Monitor initialized");
+                Console.WriteLine("✅ Azure Monitor initialized with connection string");
+            }
+            else
+            {
+                Console.WriteLine("⚠️ No Azure Monitor connection string found");
             }
         }
         catch (Exception ex)
