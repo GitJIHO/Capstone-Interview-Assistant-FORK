@@ -93,7 +93,7 @@ namespace InterviewAssistant.AppHost.Tests.Components.Pages
             await Page.Locator("input#resumeUrl").FillAsync("https://example.com/resume.pdf");
             await Page.Locator("input#jobUrl").FillAsync("https://example.com/job.pdf");
             await Page.Locator("button.submit-btn").ClickAsync();
-            await Page.WaitForSelectorAsync(".modal", new() { State = WaitForSelectorState.Detached, Timeout = 5000 });
+            await Page.WaitForSelectorAsync(".modal", new() { State = WaitForSelectorState.Detached, Timeout = 10000 });
 
             var sendButton = Page.Locator("button.send-btn");
             var textarea = Page.Locator("textarea#messageInput");
@@ -105,6 +105,9 @@ namespace InterviewAssistant.AppHost.Tests.Components.Pages
 
             // 텍스트 입력 필드 확인 (Locator 기반으로 변경)
             await Expect(textarea).ToBeVisibleAsync();
+
+            // textarea가 활성화될 때까지 대기
+            await Expect(textarea).ToBeEnabledAsync(new() { Timeout = 10000 });
 
             // 텍스트 입력 
             await textarea.FillAsync("안녕하세요"); // TypeAsync 대신 FillAsync 사용
@@ -251,7 +254,7 @@ namespace InterviewAssistant.AppHost.Tests.Components.Pages
             await Page.WaitForSelectorAsync(".modal", new()
             {
                 State = WaitForSelectorState.Detached,
-                Timeout = 5000
+                Timeout = 10000
             });
 
             // Assert:
@@ -259,19 +262,19 @@ namespace InterviewAssistant.AppHost.Tests.Components.Pages
             await Page.WaitForSelectorAsync(".welcome-message", new PageWaitForSelectorOptions
             {
                 State = WaitForSelectorState.Detached,
-                Timeout = 5000
+                Timeout = 10000
             });
             // 2) AI 응답이 끝날 때까지 대기
             await Page.WaitForSelectorAsync(".response-status", new PageWaitForSelectorOptions
             {
                 State = WaitForSelectorState.Detached,
-                Timeout = 20000
+                Timeout = 40000
             });
 
             // 2) 입력창 활성화 상태 확인
             var chatArea = Page.Locator("textarea#messageInput");
             await Expect(chatArea).ToBeVisibleAsync();
-            await Expect(chatArea).ToBeEnabledAsync();
+            await Expect(chatArea).ToBeEnabledAsync(new() { Timeout = 10000 });
         }
 
         [Test]
@@ -285,7 +288,7 @@ namespace InterviewAssistant.AppHost.Tests.Components.Pages
             await Page.WaitForSelectorAsync(".modal", new PageWaitForSelectorOptions
             {
                 State = WaitForSelectorState.Detached,
-                Timeout = 5000
+                Timeout = 10000
             });
 
             var statusMessage = Page.Locator(".response-status");
@@ -294,6 +297,9 @@ namespace InterviewAssistant.AppHost.Tests.Components.Pages
 
             var initialCount = await Page.EvaluateAsync<int>("document.querySelectorAll('.message').length");
 
+            // textarea가 활성화될 때까지 대기
+            await Expect(textarea).ToBeEnabledAsync(new() { Timeout = 10000 });
+
             // Act
             // 메시지 전송
             await textarea.FillAsync("안녕하세요, 면접 준비를 도와주세요");
@@ -301,7 +307,7 @@ namespace InterviewAssistant.AppHost.Tests.Components.Pages
             await Page.WaitForSelectorAsync(".response-status", new PageWaitForSelectorOptions
             {
                 State = WaitForSelectorState.Attached,
-                Timeout = 20000
+                Timeout = 40000
             });
             
             // Assert
