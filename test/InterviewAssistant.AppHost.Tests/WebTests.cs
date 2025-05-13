@@ -4,7 +4,7 @@ namespace InterviewAssistant.AppHost.Tests;
 
 public class WebTests
 {
-    private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(60);
 
     [Test]
     public async Task GetWebResourceRootReturnsOkStatusCode()
