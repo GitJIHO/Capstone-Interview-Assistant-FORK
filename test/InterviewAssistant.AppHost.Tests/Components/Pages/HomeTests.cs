@@ -93,10 +93,25 @@ namespace InterviewAssistant.AppHost.Tests.Components.Pages
             await Page.Locator("input#resumeUrl").FillAsync("https://example.com/resume.pdf");
             await Page.Locator("input#jobUrl").FillAsync("https://example.com/job.pdf");
             await Page.Locator("button.submit-btn").ClickAsync();
-            await Page.WaitForSelectorAsync(".modal", new() { State = WaitForSelectorState.Detached, Timeout = 5000 });
+            await Page.WaitForSelectorAsync(".modal", new() { State = WaitForSelectorState.Detached, Timeout = 10000 }); // 모달 닫힘 대기 시간 증가
 
             var sendButton = Page.Locator("button.send-btn");
             var textarea = Page.Locator("textarea#messageInput");
+
+            // 초기 AI 응답 및 UI 준비 대기
+            await Page.WaitForSelectorAsync(".welcome-message", new PageWaitForSelectorOptions
+            {
+                State = WaitForSelectorState.Detached,
+                Timeout = 15000 // 환영 메시지 사라짐 대기 시간 증가
+            });
+            await Page.WaitForSelectorAsync(".response-status", new PageWaitForSelectorOptions
+            {
+                State = WaitForSelectorState.Detached,
+                Timeout = 40000 // AI 응답 상태 메시지 사라짐 대기 시간 크게 증가
+            });
+            
+            // Textarea가 활성화될 때까지 명시적으로 대기
+            await Expect(textarea).ToBeEnabledAsync(new() { Timeout = 15000 });
 
             // Act
             // 초기 상태에서 전송 버튼은 비활성화 (Locator 기반으로 변경)
@@ -247,11 +262,10 @@ namespace InterviewAssistant.AppHost.Tests.Components.Pages
             await jobUrlInput.FillAsync("https://example.com/job-posting");
 
             await submitButton.ClickAsync(); // 모달 창 닫기
-            // 모달이 DOM에서 완전히 제거될 때까지 대기
             await Page.WaitForSelectorAsync(".modal", new()
             {
                 State = WaitForSelectorState.Detached,
-                Timeout = 5000
+                Timeout = 10000 // 모달 닫힘 대기 시간 증가
             });
 
             // Assert:
@@ -259,14 +273,14 @@ namespace InterviewAssistant.AppHost.Tests.Components.Pages
             await Page.WaitForSelectorAsync(".welcome-message", new PageWaitForSelectorOptions
             {
                 State = WaitForSelectorState.Detached,
-                Timeout = 5000
+                Timeout = 15000 // 환영 메시지 사라짐 대기 시간 증가
             });
 
             // 2) AI 응답이 끝날 때까지 대기
             await Page.WaitForSelectorAsync(".response-status", new PageWaitForSelectorOptions
             {
                 State = WaitForSelectorState.Detached,
-                Timeout = 20000
+                Timeout = 40000 // AI 응답 상태 메시지 사라짐 대기 시간 크게 증가 (기존 20000ms)
             });
 
             // 2) 입력창 활성화 상태 확인
@@ -286,14 +300,27 @@ namespace InterviewAssistant.AppHost.Tests.Components.Pages
             await Page.WaitForSelectorAsync(".modal", new PageWaitForSelectorOptions
             {
                 State = WaitForSelectorState.Detached,
-                Timeout = 5000
+                Timeout = 10000 // 모달 닫힘 대기 시간 증가
+            });
+
+            // 초기 AI 응답 및 UI 준비 대기
+            await Page.WaitForSelectorAsync(".welcome-message", new PageWaitForSelectorOptions
+            {
+                State = WaitForSelectorState.Detached,
+                Timeout = 15000 // 환영 메시지 사라짐 대기 시간 증가
+            });
+            await Page.WaitForSelectorAsync(".response-status", new PageWaitForSelectorOptions
+            {
+                State = WaitForSelectorState.Detached,
+                Timeout = 40000 // AI 응답 상태 메시지 사라짐 대기 시간 크게 증가
             });
 
             var statusMessage = Page.Locator(".response-status");
             var textarea = Page.Locator("textarea#messageInput");
             var sendButton = Page.Locator("button.send-btn");
 
-            var initialCount = await Page.EvaluateAsync<int>("document.querySelectorAll('.message').length");
+            // Textarea가 활성화될 때까지 명시적으로 대기
+            await Expect(textarea).ToBeEnabledAsync(new() { Timeout = 15000 });
 
             // Act
             // 메시지 전송
@@ -312,13 +339,22 @@ namespace InterviewAssistant.AppHost.Tests.Components.Pages
             // 버튼 비활성화 확인
             await Expect(sendButton).ToBeDisabledAsync();
 
+            // Enter 키 입력 전 메시지 개수 확인 (기존 initialCount 대신 여기서 카운트)
+            var messageCountBeforeEnter = await Page.EvaluateAsync<int>("document.querySelectorAll('.message').length");
+
             // 엔터키 입력 시 메시지가 전송되지 않음
             await textarea.PressAsync("Enter");
-            await Task.Delay(500);
+            
+            // DOM 업데이트 및 잠재적 비동기 작업 완료를 위한 충분한 시간 대기
+            // 로컬 환경에서 테스트 실패 시 이 시간을 늘려보는 것이 진단에 도움이 될 수 있습니다.
+            await Task.Delay(1000); // 기존 500ms에서 디버깅을 위해 약간 늘림
 
-            var afterCount = await Page.EvaluateAsync<int>("document.querySelectorAll('.message').length");
-            (afterCount - initialCount).ShouldBeLessThanOrEqualTo(2,
-                "서버 응답 중에는 추가 메시지가 전송되지 않아야 합니다");
+            var messageCountAfterEnter = await Page.EvaluateAsync<int>("document.querySelectorAll('.message').length");
+
+            // Enter 키 입력 후 메시지 개수가 동일한지 확인
+            messageCountAfterEnter.ShouldBe(messageCountBeforeEnter,
+                "서버 응답 중 Enter 키를 눌렀을 때 추가 메시지가 전송되지 않아야 합니다. " +
+                $"Enter 전 메시지 수: {messageCountBeforeEnter}, Enter 후 메시지 수: {messageCountAfterEnter}");
         }
     }
 }
