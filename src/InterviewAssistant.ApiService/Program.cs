@@ -6,12 +6,12 @@ using InterviewAssistant.ApiService.Services;
 using InterviewAssistant.ApiService.Data;
 using InterviewAssistant.ApiService.Repositories;
 using InterviewAssistant.ApiService.Extensions;
+using InterviewAssistant.ApiService.Middlewares;
 
 using Microsoft.SemanticKernel;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Data.Sqlite;
 
-using ModelContextProtocol;
 using ModelContextProtocol.Client;
 
 using OpenAI;
@@ -50,6 +50,7 @@ builder.Services.AddSingleton<IMcpClient>(sp =>
     return McpClientFactory.CreateAsync(transport).GetAwaiter().GetResult(); 
 });
 
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
 builder.Services.AddSingleton<Kernel>(sp =>
 {
@@ -59,15 +60,11 @@ builder.Services.AddSingleton<Kernel>(sp =>
     var kernel = Kernel.CreateBuilder()
                        .AddOpenAIChatCompletion(
                            modelId: config["GitHub:Models:ModelId"]!,
-                           openAIClient: openAIClient,
-                           serviceId: "github")
+                           openAIClient: openAIClient)
                        .Build();
 
     return kernel;
 });
-
-
-
 
 builder.Services.AddHttpClient<IUrlContentDownloader, UrlContentDownloader>();
 

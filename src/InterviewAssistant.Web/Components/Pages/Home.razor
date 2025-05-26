@@ -121,20 +121,21 @@
     private Guid currentJobDescriptionId;
     private void CloseModal() => showModal = false;
 
-    // 최초 렌더링 시 GUID 생성
+    //Blazor 컴포넌트가 처음 초기화될 때 자동으로 호출
     protected override async Task OnInitializedAsync()
     {
-        if (currentResumeId == Guid.Empty || currentJobDescriptionId == Guid.Empty)
-        {
-            currentResumeId = Guid.NewGuid();
-            currentJobDescriptionId = Guid.NewGuid();
-        }
+        // 최초 렌더링 시 GUID 생성
+        currentResumeId = Guid.NewGuid();
+        currentJobDescriptionId = Guid.NewGuid();
+        // 초기화 작업이 완료되었음을 명시
+        await Task.CompletedTask;
     }
     bool IsValidUrl(string url)
     {
         return Uri.TryCreate(url, UriKind.Absolute, out Uri? uri) && 
             (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
     }
+
     private async Task SubmitLinks()
     {
         // URL 검증
@@ -206,38 +207,28 @@
     // 키 입력 처리 (엔터키로 메시지 전송)
     private async Task HandleKeyDown(KeyboardEventArgs e)
     {
-        // 이미 전송 중이면 무시
-        if(e.Repeat || isSend)
-        {
-            return;
-        }
+        if (e.Repeat || isSend) return;
         
-        if (e.Key == "Enter" && !e.ShiftKey)
+        isSend = true;
+        
+        try
         {
-            try 
+            if (e.Key == "Enter" && !e.ShiftKey)
             {
-                // isSend 플래그 설정으로 중복 전송 방지
-                isSend = true;
-                
-                // 텍스트 영역의 실제 값을 JavaScript를 통해 가져옵니다
                 var actualValue = await JSRuntime.InvokeAsync<string>("getTextAreaValue", "messageInput");
                 
-                // 실제 값이 비어있지 않은 경우에만 메시지를 보냅니다
                 if (!string.IsNullOrWhiteSpace(actualValue))
                 {
-                    // 실제 값으로 userInput을 갱신합니다
                     userInput = actualValue.TrimEnd('\n', '\r');
                     await SendMessage();
                 }
             }
-            finally 
-            {
-                // 성공/실패 상관없이 항상 플래그 해제
-                isSend = false;
-            }
+        }
+        finally
+        {
+            isSend = false;
         }
     }
-
     // 메시지 전송 - 서비스 사용
     private async Task SendMessage()
     {
